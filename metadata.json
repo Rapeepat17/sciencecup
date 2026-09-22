@@ -1,0 +1,6 @@
+{
+  "name": "SCI CUP",
+  "description": "ระบบจัดการแข่งขันฟุตบอล สร้างทีมและจัดกลุ่ม ตารางและโปรแกรมการแข่งขัน ตารางคะแนนและสถิติสด",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
