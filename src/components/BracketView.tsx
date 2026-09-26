@@ -456,16 +456,19 @@ export const BracketView: React.FC<BracketViewProps> = ({
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Calculate dynamic base match number continuing after group stage (e.g. 18 -> 19)
+  // Calculate dynamic base match number continuing after actual group matches count
   const getBaseMatchNumber = (): number => {
     const groupMatches = matches.filter(
       (m) =>
         m.group !== 'Knockout' &&
-        !m.round.includes('8 ทีม') &&
-        !m.round.includes('รอง') &&
-        !m.round.includes('ชิง')
+        !m.group?.includes('น็อคเอาท์') &&
+        !m.round?.includes('16 ทีม') &&
+        !m.round?.includes('8 ทีม') &&
+        !m.round?.includes('รอง') &&
+        !m.round?.includes('ชิง')
     );
-    return groupMatches.reduce((max, m) => Math.max(max, m.matchNumber || 0), 0) || 18;
+    const maxNo = groupMatches.reduce((max, m) => Math.max(max, m.matchNumber || 0), 0);
+    return maxNo > 0 ? maxNo : groupMatches.length;
   };
 
   const baseNo = getBaseMatchNumber();
@@ -722,7 +725,7 @@ export const BracketView: React.FC<BracketViewProps> = ({
 
         list.push({
           id: m.id,
-          matchday: 11,
+          matchday: qfNo,
           matchNumber: qfNo,
           dateStr: existing?.dateStr || m.date || '31 ต.ค. 2026',
           timeStr: cleanTimeStr(existing?.timeStr || m.time || '18:00'),
@@ -783,7 +786,7 @@ export const BracketView: React.FC<BracketViewProps> = ({
 
         list.push({
           id: m.id,
-          matchday: 12,
+          matchday: sfNo,
           matchNumber: sfNo,
           dateStr: existing?.dateStr || m.date || '1 พ.ย. 2026',
           timeStr: cleanTimeStr(existing?.timeStr || m.time || '18:00'),
@@ -800,9 +803,90 @@ export const BracketView: React.FC<BracketViewProps> = ({
       });
     }
 
+    // 3rd Place Match (3rd Place Playoff between Losers of SF 1 and SF 2)
+    if (activeRound === 'r16' || activeRound === 'qf' || activeRound === 'sf') {
+      const tpNo = activeRound === 'r16' ? baseNo + 15 : activeRound === 'qf' ? baseNo + 7 : baseNo + 3;
+      const existingTp = matches.find((item) => item.id === 'third_place' || item.round?.includes('3') || item.round?.includes('อันดับ'));
+
+      const sf1 = activeSf[0];
+      const sf2 = activeSf[1];
+      const sm1 = sf1 ? matches.find((item) => item.id === sf1.id) : undefined;
+      const sm2 = sf2 ? matches.find((item) => item.id === sf2.id) : undefined;
+
+      const isSf1FT = sm1 ? sm1.status === 'FT' : (sf1?.winner !== null && sf1?.winner !== undefined);
+      const isSf2FT = sm2 ? sm2.status === 'FT' : (sf2?.winner !== null && sf2?.winner !== undefined);
+
+      const sf1No = sm1?.matchNumber ?? (activeRound === 'r16' ? baseNo + 13 : activeRound === 'qf' ? baseNo + 5 : baseNo + 1);
+      const sf2No = sm2?.matchNumber ?? (activeRound === 'r16' ? baseNo + 14 : activeRound === 'qf' ? baseNo + 6 : baseNo + 2);
+
+      let tpName1 = '';
+      let tpLogo1 = '';
+      let tpName2 = '';
+      let tpLogo2 = '';
+
+      if (isSf1FT) {
+        let loserName = '';
+        let loserLogo = '';
+        if (sm1 && sm1.score1 !== undefined && sm1.score2 !== undefined) {
+          const hasPens = sm1.penaltyScore1 !== undefined && sm1.penaltyScore1 !== null && sm1.penaltyScore2 !== undefined && sm1.penaltyScore2 !== null;
+          const isT1Win = sm1.score1 > sm1.score2 || (sm1.score1 === sm1.score2 && hasPens && (sm1.penaltyScore1 || 0) > (sm1.penaltyScore2 || 0));
+          loserName = isT1Win ? sm1.team2.name : sm1.team1.name;
+          loserLogo = isT1Win ? (sm1.team2.logo || '') : (sm1.team1.logo || '');
+        } else if (sf1?.winner === 1) {
+          loserName = sf1.team2.name;
+          loserLogo = sf1.team2.logo || '';
+        } else if (sf1?.winner === 2) {
+          loserName = sf1.team1.name;
+          loserLogo = sf1.team1.logo || '';
+        }
+        tpName1 = loserName && loserName !== '-' ? cleanSeedName(loserName) : `ทีมแพ้ (คู่ที่ ${sf1No})`;
+        tpLogo1 = loserLogo;
+      } else {
+        tpName1 = `ทีมแพ้ (คู่ที่ ${sf1No})`;
+      }
+
+      if (isSf2FT) {
+        let loserName = '';
+        let loserLogo = '';
+        if (sm2 && sm2.score1 !== undefined && sm2.score2 !== undefined) {
+          const hasPens = sm2.penaltyScore1 !== undefined && sm2.penaltyScore1 !== null && sm2.penaltyScore2 !== undefined && sm2.penaltyScore2 !== null;
+          const isT1Win = sm2.score1 > sm2.score2 || (sm2.score1 === sm2.score2 && hasPens && (sm2.penaltyScore1 || 0) > (sm2.penaltyScore2 || 0));
+          loserName = isT1Win ? sm2.team2.name : sm2.team1.name;
+          loserLogo = isT1Win ? (sm2.team2.logo || '') : (sm2.team1.logo || '');
+        } else if (sf2?.winner === 1) {
+          loserName = sf2.team2.name;
+          loserLogo = sf2.team2.logo || '';
+        } else if (sf2?.winner === 2) {
+          loserName = sf2.team1.name;
+          loserLogo = sf2.team1.logo || '';
+        }
+        tpName2 = loserName && loserName !== '-' ? cleanSeedName(loserName) : `ทีมแพ้ (คู่ที่ ${sf2No})`;
+        tpLogo2 = loserLogo;
+      } else {
+        tpName2 = `ทีมแพ้ (คู่ที่ ${sf2No})`;
+      }
+
+      list.push({
+        id: 'third_place',
+        matchday: tpNo,
+        matchNumber: tpNo,
+        dateStr: existingTp?.dateStr || '2 พ.ย. 2026',
+        timeStr: cleanTimeStr(existingTp?.timeStr || '15:00'),
+        round: 'นัดชิงอันดับ 3',
+        group: 'Knockout',
+        venue: existingTp?.venue || 'สนามหลัก',
+        team1: makeKnockoutTeamObj(tpName1, tpLogo1),
+        team2: makeKnockoutTeamObj(tpName2, tpLogo2),
+        score1: 0,
+        score2: 0,
+        status: 'UPCOMING',
+        statusLabel: 'ชิงอันดับ 3',
+      });
+    }
+
     if (activeFinal) {
-      const existing = matches.find((item) => item.id === activeFinal.id || (item.round?.includes('ชิง') && !item.round?.includes('รอง') && !item.round?.includes('3')));
-      const fnNo = activeRound === 'r16' ? baseNo + 15 : activeRound === 'qf' ? baseNo + 7 : activeRound === 'sf' ? baseNo + 3 : baseNo + 1;
+      const existing = matches.find((item) => item.id === activeFinal.id || (item.round?.includes('ชิง') && !item.round?.includes('รอง') && !item.round?.includes('3') && !item.round?.includes('อันดับ')));
+      const fnNo = activeRound === 'r16' ? baseNo + 16 : activeRound === 'qf' ? baseNo + 8 : activeRound === 'sf' ? baseNo + 4 : baseNo + 1;
 
       let name1 = '';
       let name2 = '';
@@ -837,7 +921,7 @@ export const BracketView: React.FC<BracketViewProps> = ({
 
       list.push({
         id: activeFinal.id,
-        matchday: 13,
+        matchday: fnNo,
         matchNumber: fnNo,
         dateStr: existing?.dateStr || activeFinal.date || '2 พ.ย. 2026',
         timeStr: cleanTimeStr(existing?.timeStr || activeFinal.time || '18:00'),
@@ -1045,12 +1129,26 @@ export const BracketView: React.FC<BracketViewProps> = ({
   };
 
   const handleResetBracket = () => {
+    setIsKnockoutCreated(false);
+    if (setIsBracketLocked) setIsBracketLocked(false);
     setR16Matches(INITIAL_R16_MATCHES);
     setQfMatches(INITIAL_QF_MATCHES);
     setSfMatches(INITIAL_SF_MATCHES);
     setFinalMatch(INITIAL_FINAL_MATCH);
     if (onSyncKnockoutToMatches) {
       onSyncKnockoutToMatches([]);
+    }
+    if (onSaveBracket) {
+      onSaveBracket({
+        knockoutStartingRound: startingRound,
+        r16Matches: INITIAL_R16_MATCHES,
+        qfMatches: INITIAL_QF_MATCHES,
+        sfMatches: INITIAL_SF_MATCHES,
+        finalMatch: INITIAL_FINAL_MATCH,
+        isBracketLocked: false,
+        isKnockoutCreated: false,
+        knockoutMatchesList: [],
+      });
     }
     showToast('รีเซ็ตสายการแข่งขันและลบแมตช์น็อคเอาท์ในตารางเรียบร้อยแล้ว!');
   };

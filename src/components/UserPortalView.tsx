@@ -1605,7 +1605,8 @@ export const UserPortalView: React.FC<UserPortalViewProps> = ({
                                   !m.round.includes('รอง') &&
                                   !m.round.includes('ชิง')
                               );
-                              return groupMatches.reduce((max, m) => Math.max(max, m.matchNumber || 0), 0) || 18;
+                              const maxNo = groupMatches.reduce((max, m) => Math.max(max, m.matchNumber || 0), 0);
+                              return maxNo > 0 ? maxNo : groupMatches.length;
                             };
                             const baseNo = getBaseMatchNumber();
 
@@ -1779,7 +1780,8 @@ export const UserPortalView: React.FC<UserPortalViewProps> = ({
                               !m.round.includes('รอง') &&
                               !m.round.includes('ชิง')
                           );
-                          return groupMatches.reduce((max, m) => Math.max(max, m.matchNumber || 0), 0) || 18;
+                          const maxNo = groupMatches.reduce((max, m) => Math.max(max, m.matchNumber || 0), 0);
+                          return maxNo > 0 ? maxNo : groupMatches.length;
                         };
                         const baseNo = getBaseMatchNumber();
 

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Team, Match, TopScorer, GroupMap } from '../types';
 import { calculateGroupStandings, calculateTopScorers } from '../utils/standingsCalculator';
 import {
-  Download,
   Share2,
   Users,
   Trophy,
@@ -97,17 +96,7 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
     }
   };
 
-  const handleExportData = () => {
-    const dataStr =
-      'data:text/json;charset=utf-8,' +
-      encodeURIComponent(JSON.stringify({ groups, matches }, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `standings-${tournamentName}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
+
 
   let totalTeamsCount = 0;
   for (const k of groupKeys) {
@@ -151,14 +140,7 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
 
         {/* Quick Action Ribbon */}
         <div className="flex flex-wrap items-center gap-2.5 z-10">
-          <button
-            type="button"
-            onClick={handleExportData}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#f5f3f3] hover:bg-[#efeded] text-[#1b1c1c] text-xs font-bold transition-colors shadow-2xs border border-[#efeded]"
-          >
-            <Download className="w-4 h-4 text-[#4b4737]" />
-            <span>ส่งออกข้อมูล (Export)</span>
-          </button>
+
 
           <button
             type="button"

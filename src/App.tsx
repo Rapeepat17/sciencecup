@@ -157,9 +157,15 @@ export default function App() {
   const initialHydratedRef = useRef(false);
   const lastJsonRef = useRef<string>('');
   const lastUpdatedAtRef = useRef<number>(initialDb.updatedAt || 0);
+  const lastLocalEditTimeRef = useRef<number>(0);
 
   const applyDatabaseData = useCallback((data: TournamentDatabaseData) => {
     if (!data) return;
+
+    // Do not apply polling updates if user made local edits recently (within last 5 seconds)
+    if (Date.now() - lastLocalEditTimeRef.current < 5000) {
+      return;
+    }
 
     // Reject stale data if local state has newer edits
     if (data.updatedAt && lastUpdatedAtRef.current && data.updatedAt < lastUpdatedAtRef.current) {
@@ -191,7 +197,7 @@ export default function App() {
     isDbLoadedRef.current = true;
   }, []);
 
-  // Async load from cloud/local DB + 3s Auto-Polling + Cross-Tab Sync
+  // Async load from cloud/local DB + 8s Safe Auto-Polling + Cross-Tab Sync
   useEffect(() => {
     let isMounted = true;
     const fetchInitial = async () => {
@@ -219,12 +225,14 @@ export default function App() {
 
     const interval = setInterval(async () => {
       try {
+        // Skip polling if user edited locally recently
+        if (Date.now() - lastLocalEditTimeRef.current < 5000) return;
         const fresh = await fetchDatabase();
         if (fresh && isMounted) {
           applyDatabaseData(fresh);
         }
       } catch (err) {}
-    }, 3000);
+    }, 8000);
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'scicup_database_v3' && e.newValue) {
@@ -243,12 +251,12 @@ export default function App() {
     };
   }, [applyDatabaseData]);
 
-  // Auto-save database to cloud/local whenever state updates (after initial load)
+  // Debounced Auto-save database to cloud/local whenever state updates (after initial load)
   useEffect(() => {
     if (!initialHydratedRef.current) return;
 
+    lastLocalEditTimeRef.current = Date.now();
     const now = Date.now();
-    lastUpdatedAtRef.current = now;
 
     const payload: TournamentDatabaseData = {
       tournamentName,
@@ -269,9 +277,15 @@ export default function App() {
 
     const payloadJson = JSON.stringify(payload);
     if (payloadJson === lastJsonRef.current) return;
-    lastJsonRef.current = payloadJson;
 
-    saveDatabase(payload);
+    // Debounce save by 400ms to batch rapid interactions
+    const timer = setTimeout(() => {
+      lastJsonRef.current = payloadJson;
+      lastUpdatedAtRef.current = now;
+      saveDatabase(payload);
+    }, 400);
+
+    return () => clearTimeout(timer);
   }, [
     tournamentName,
     teams,
@@ -566,6 +580,41 @@ export default function App() {
       return null;
     };
 
+    const getMatchLoserObj = (
+      bracketMatch?: BracketMatchup,
+      matchId?: string
+    ): { name: string; logo: string } | null => {
+      const scheduleMatch = matches.find((m) => m.id === matchId);
+      if (
+        scheduleMatch &&
+        (scheduleMatch.status === 'FT' || scheduleMatch.currentMinute === 'FT') &&
+        scheduleMatch.score1 !== undefined &&
+        scheduleMatch.score2 !== undefined
+      ) {
+        const hasPens = scheduleMatch.penaltyScore1 !== undefined && scheduleMatch.penaltyScore1 !== null && scheduleMatch.penaltyScore2 !== undefined && scheduleMatch.penaltyScore2 !== null;
+        const isT1Win = scheduleMatch.score1 > scheduleMatch.score2 || (scheduleMatch.score1 === scheduleMatch.score2 && hasPens && (scheduleMatch.penaltyScore1 || 0) > (scheduleMatch.penaltyScore2 || 0));
+        const isT2Win = scheduleMatch.score2 > scheduleMatch.score1 || (scheduleMatch.score1 === scheduleMatch.score2 && hasPens && (scheduleMatch.penaltyScore2 || 0) > (scheduleMatch.penaltyScore1 || 0));
+
+        if (isT1Win) {
+          return { name: scheduleMatch.team2.name, logo: scheduleMatch.team2.logo || '' };
+        }
+        if (isT2Win) {
+          return { name: scheduleMatch.team1.name, logo: scheduleMatch.team1.logo || '' };
+        }
+      }
+
+      if (bracketMatch && bracketMatch.winner) {
+        if (bracketMatch.winner === 1 && bracketMatch.team2?.name && bracketMatch.team2.name !== '-') {
+          return { name: bracketMatch.team2.name, logo: bracketMatch.team2.logo || '' };
+        }
+        if (bracketMatch.winner === 2 && bracketMatch.team1?.name && bracketMatch.team1.name !== '-') {
+          return { name: bracketMatch.team1.name, logo: bracketMatch.team1.logo || '' };
+        }
+      }
+
+      return null;
+    };
+
     let qfChanged = false;
     let sfChanged = false;
     let finalChanged = false;
@@ -612,13 +661,18 @@ export default function App() {
       });
     }
 
-    // 3. SF -> Final
+    // 3. SF -> Final & 3rd Place
     let updatedFinal = { ...finalMatch };
+    let l1: { name: string; logo: string } | null = null;
+    let l2: { name: string; logo: string } | null = null;
     if (updatedSf.length === 2) {
       const m1 = updatedSf[0];
       const m2 = updatedSf[1];
       const w1 = getMatchWinnerObj(m1, m1?.id);
       const w2 = getMatchWinnerObj(m2, m2?.id);
+      l1 = getMatchLoserObj(m1, m1?.id);
+      l2 = getMatchLoserObj(m2, m2?.id);
+
       if (w1 && (finalMatch.team1.name !== w1.name || (finalMatch.team1.logo || '') !== w1.logo)) {
         updatedFinal.team1 = { ...updatedFinal.team1, name: w1.name, logo: w1.logo };
         finalChanged = true;
@@ -676,6 +730,25 @@ export default function App() {
         });
 
         const updatedMatches = prevMatches.map((m) => {
+          if (m.id === 'third_place') {
+            let t1 = m.team1;
+            let t2 = m.team2;
+            let tpChanged = false;
+            if (l1 && l1.name && l1.name !== '-' && l1.name !== m.team1.name) {
+              t1 = { ...m.team1, name: l1.name, logo: l1.logo || m.team1.logo };
+              tpChanged = true;
+            }
+            if (l2 && l2.name && l2.name !== '-' && l2.name !== m.team2.name) {
+              t2 = { ...m.team2, name: l2.name, logo: l2.logo || m.team2.logo };
+              tpChanged = true;
+            }
+            if (tpChanged) {
+              matchesChanged = true;
+              return { ...m, team1: t1, team2: t2 };
+            }
+            return m;
+          }
+
           const bMatch = activeBracketList.find((b) => b.id === m.id);
           if (bMatch) {
             let t1 = m.team1;

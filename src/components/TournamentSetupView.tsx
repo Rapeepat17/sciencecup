@@ -222,16 +222,17 @@ export const TournamentSetupView: React.FC<TournamentSetupViewProps> = ({
 
   // Delete team
   const handleDeleteTeam = (teamId: string | number) => {
-    setTeams((prev) => prev.filter((t) => t.id !== teamId));
+    const sId = String(teamId);
+    setTeams((prev) => prev.filter((t) => String(t.id) !== sId));
     // Also remove from any group it belongs to
     const updatedGroups: GroupMap = {};
     groupKeys.forEach((gKey) => {
-      updatedGroups[gKey] = (groups[gKey] || []).filter((t) => t.id !== teamId);
+      updatedGroups[gKey] = (groups[gKey] || []).filter((t) => String(t.id) !== sId);
     });
     setGroups(updatedGroups);
     // Also remove from matches
     if (setMatches) {
-      setMatches((prev) => prev.filter((m) => m.team1.id !== teamId && m.team2.id !== teamId));
+      setMatches((prev) => prev.filter((m) => String(m.team1?.id) !== sId && String(m.team2?.id) !== sId));
     }
   };
 

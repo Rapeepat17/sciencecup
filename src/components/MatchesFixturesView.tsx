@@ -50,6 +50,7 @@ export const formatMatchGroupLabel = (group?: string, round?: string): string =>
     if (r.includes('16 ทีม') || rLower.includes('r16') || rLower.includes('round of 16')) return 'รอบ 16 ทีม';
     if (r.includes('8 ทีม') || rLower.includes('quarter') || rLower.includes('qf')) return 'รอบ 8 ทีม';
     if ((r.includes('รอง') && !r.includes('ชิง')) || rLower.includes('semi') || rLower === 'sf') return 'รอบรองชนะเลิศ';
+    if (r.includes('3') || r.includes('อันดับ') || rLower.includes('third')) return 'นัดชิงอันดับ 3';
     if (r.includes('ชิง') || rLower.includes('final') || rLower === 'f') return 'นัดชิงชนะเลิศ';
     if (r) return r;
     return 'รอบน็อคเอาท์';
@@ -755,6 +756,7 @@ export const MatchesFixturesView: React.FC<MatchesFixturesViewProps> = ({
             { id: 'รอบ 16 ทีมสุดท้าย', label: 'รอบ 16 ทีม' },
             { id: 'รอบ 8 ทีมสุดท้าย', label: 'รอบ 8 ทีม' },
             { id: 'รอบรองชนะเลิศ', label: 'รอบรองฯ' },
+            { id: 'นัดชิงอันดับ 3', label: 'ชิงอันดับ 3' },
             { id: 'นัดชิงชนะเลิศ', label: 'นัดชิงฯ' },
           ].map((r) => (
             <button
