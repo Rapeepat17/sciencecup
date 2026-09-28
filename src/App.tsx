@@ -163,8 +163,8 @@ export default function App() {
     if (!data) return;
 
     if (!isInitial) {
-      // Do not apply polling updates if user made local edits recently (within last 5 seconds)
-      if (Date.now() - lastLocalEditTimeRef.current < 5000) {
+      // Do not apply polling updates if user made local edits recently (within last 10 seconds)
+      if (Date.now() - lastLocalEditTimeRef.current < 10000) {
         return;
       }
 
@@ -188,7 +188,15 @@ export default function App() {
     if (Array.isArray(data.teams)) setTeams(data.teams);
     if (data.groups && typeof data.groups === 'object') setGroups(data.groups);
 
-    if (Array.isArray(data.matches)) setMatches(data.matches);
+    if (Array.isArray(data.matches)) {
+      // Safety guard: Never let background polling with 0 matches wipe out existing matches in state
+      setMatches((prevMatches) => {
+        if (isInitial || data.matches.length > 0 || prevMatches.length === 0) {
+          return data.matches;
+        }
+        return prevMatches;
+      });
+    }
     if (data.knockoutStartingRound) setKnockoutStartingRound(data.knockoutStartingRound);
     if (Array.isArray(data.r16Matches)) setR16Matches(data.r16Matches);
     if (Array.isArray(data.qfMatches)) setQfMatches(data.qfMatches);
@@ -973,6 +981,7 @@ export default function App() {
     }
 
     const now = Date.now();
+    lastLocalEditTimeRef.current = now;
     lastUpdatedAtRef.current = now;
 
     const payload: TournamentDatabaseData = {
@@ -1023,6 +1032,10 @@ export default function App() {
         currentMatches = combined;
       }
     }
+    const now = Date.now();
+    lastLocalEditTimeRef.current = now;
+    lastUpdatedAtRef.current = now;
+
     const payload: TournamentDatabaseData = {
       tournamentName,
       teams,
@@ -1035,8 +1048,9 @@ export default function App() {
       finalMatch,
       isBracketLocked,
       isKnockoutCreated,
-      updatedAt: Date.now(),
+      updatedAt: now,
     };
+    lastJsonRef.current = JSON.stringify(payload);
     await saveDatabase(payload);
     navigateToAdminView('matches-and-fixtures');
   };

@@ -230,6 +230,16 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
                 logo: awayLogo,
               };
 
+              let resolvedGroup = m.stage === 'group' || !m.stage ? groupMapById.get(m.group_id) || '' : 'Knockout';
+              if (!resolvedGroup && (m.stage === 'group' || !m.stage)) {
+                for (const [gName, gTeams] of Object.entries(groups)) {
+                  if (gTeams.some((t: any) => String(t.id) === String(m.home_team_id) || t.name === homeName)) {
+                    resolvedGroup = gName;
+                    break;
+                  }
+                }
+              }
+
               scheduledMatches.push({
                 id: String(m.id),
                 matchNumber: m.matchday || undefined,
@@ -237,30 +247,45 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
                 dateStr: m.match_date || '',
                 timeStr: m.match_time || '',
                 round: m.round_name || 'รอบแบ่งกลุ่ม (Group Stage)',
-                group: m.stage === 'group' || !m.stage ? groupMapById.get(m.group_id) || '' : 'Knockout',
-                venue: m.venue || 'สนามหลัก',
-                team1: t1,
-                team2: t2,
-                score1: m.home_score ?? 0,
-                score2: m.away_score ?? 0,
-                penaltyScore1: m.penalty_home_score,
-                penaltyScore2: m.penalty_away_score,
-                status: m.status || 'UPCOMING',
-                statusLabel: m.status_label || '',
-                currentMinute: m.current_minute || '',
-                goalPlayers1: md.goalPlayers1,
-                goalPlayers2: md.goalPlayers2,
-                goalDetails1: md.goalDetails1,
-                goalDetails2: md.goalDetails2,
-                cardsT1: md.cardsT1,
-                cardsT2: md.cardsT2,
-                events: md.events,
+                group: resolvedGroup,
+                  venue: m.venue || 'สนามหลัก',
+                  team1: t1,
+                  team2: t2,
+                  score1: m.home_score ?? 0,
+                  score2: m.away_score ?? 0,
+                  penaltyScore1: m.penalty_home_score,
+                  penaltyScore2: m.penalty_away_score,
+                  status: m.status || 'UPCOMING',
+                  statusLabel: m.status_label || '',
+                  currentMinute: m.current_minute || '',
+                  goalPlayers1: md.goalPlayers1,
+                  goalPlayers2: md.goalPlayers2,
+                  goalDetails1: md.goalDetails1,
+                  goalDetails2: md.goalDetails2,
+                  cardsT1: md.cardsT1,
+                  cardsT2: md.cardsT2,
+                  events: md.events,
+                });
               });
-            });
 
-            // Ensure matches are strictly sorted by matchNumber
-            scheduledMatches.sort((a, b) => (a.matchNumber || a.matchday || 0) - (b.matchNumber || b.matchday || 0));
-          }
+              // Ensure matches are strictly sorted by matchNumber
+              scheduledMatches.sort((a, b) => (a.matchNumber || a.matchday || 0) - (b.matchNumber || b.matchday || 0));
+            }
+
+            // Fallback protection for matches from bracket_data or localStorage if relational query returned empty
+            if (scheduledMatches.length === 0 && Array.isArray(bracketData.matchesBackup) && bracketData.matchesBackup.length > 0) {
+              scheduledMatches.push(...bracketData.matchesBackup);
+            } else if (scheduledMatches.length === 0) {
+              try {
+                const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (cached) {
+                  const localParsed = JSON.parse(cached);
+                  if (Array.isArray(localParsed.matches) && localParsed.matches.length > 0) {
+                    scheduledMatches.push(...localParsed.matches);
+                  }
+                }
+              } catch {}
+            }
 
           const fallback = DEFAULT_DATABASE_DATA;
 
@@ -369,6 +394,7 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
         matchDetails,
         teamsBackup: Array.isArray(data.teams) ? data.teams : [],
         groupsBackup: data.groups && typeof data.groups === 'object' ? data.groups : {},
+        matchesBackup: Array.isArray(data.matches) ? data.matches : [],
       };
 
       let { error: tourneyErr } = await supabase.from('tournaments').upsert({
@@ -686,6 +712,7 @@ export async function resetDatabase(): Promise<TournamentDatabaseData> {
         bracket_data: {
           teamsBackup: [],
           groupsBackup: {},
+          matchesBackup: [],
           matchDetails: {},
         },
       });
