@@ -74,15 +74,15 @@ export const TournamentSetupView: React.FC<TournamentSetupViewProps> = ({
   const groupKeys = Object.keys(groups);
 
   // Set of team IDs that are currently assigned to any group
-  const assignedTeamIdToGroup = new Map<string | number, string>();
+  const assignedTeamIdToGroup = new Map<string, string>();
   groupKeys.forEach((gKey) => {
     (groups[gKey] || []).forEach((t) => {
-      assignedTeamIdToGroup.set(t.id, gKey);
+      assignedTeamIdToGroup.set(String(t.id), gKey);
     });
   });
 
   // Unassigned teams list
-  const unassignedTeams = teams.filter((t) => !assignedTeamIdToGroup.has(t.id));
+  const unassignedTeams = teams.filter((t) => !assignedTeamIdToGroup.has(String(t.id)));
   const assignedCount = teams.length - unassignedTeams.length;
 
   const badgeColors = [
@@ -346,8 +346,9 @@ export const TournamentSetupView: React.FC<TournamentSetupViewProps> = ({
   const handleAddTeamToGroup = (groupKey: string, team: Team) => {
     // Remove team from any existing group first
     const updated: GroupMap = {};
+    const teamIdStr = String(team.id);
     groupKeys.forEach((k) => {
-      updated[k] = (groups[k] || []).filter((t) => t.id !== team.id);
+      updated[k] = (groups[k] || []).filter((t) => String(t.id) !== teamIdStr);
     });
     // Add to target group
     updated[groupKey] = [...(updated[groupKey] || []), team];
@@ -357,9 +358,10 @@ export const TournamentSetupView: React.FC<TournamentSetupViewProps> = ({
 
   // Remove a team from a group (becomes unassigned)
   const handleRemoveTeamFromGroup = (groupKey: string, teamId: string | number) => {
+    const teamIdStr = String(teamId);
     setGroups({
       ...groups,
-      [groupKey]: (groups[groupKey] || []).filter((t) => t.id !== teamId),
+      [groupKey]: (groups[groupKey] || []).filter((t) => String(t.id) !== teamIdStr),
     });
   };
 
@@ -367,7 +369,8 @@ export const TournamentSetupView: React.FC<TournamentSetupViewProps> = ({
   const handleMoveTeamToOtherGroup = (fromGroup: string, toGroup: string, team: Team) => {
     if (fromGroup === toGroup) return;
     const updated: GroupMap = { ...groups };
-    updated[fromGroup] = (updated[fromGroup] || []).filter((t) => t.id !== team.id);
+    const teamIdStr = String(team.id);
+    updated[fromGroup] = (updated[fromGroup] || []).filter((t) => String(t.id) !== teamIdStr);
     updated[toGroup] = [...(updated[toGroup] || []), team];
     setGroups(updated);
   };

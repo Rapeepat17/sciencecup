@@ -180,8 +180,31 @@ export default function App() {
     }
 
     if (data.tournamentName) setTournamentName(data.tournamentName);
-    if (Array.isArray(data.teams)) setTeams(data.teams);
-    if (data.groups && typeof data.groups === 'object') setGroups(data.groups);
+
+    if (Array.isArray(data.teams)) {
+      setTeams((prevTeams) => {
+        // Safety guard: if local state has teams, but incoming polled data has 0 teams, preserve local teams
+        if (prevTeams.length > 0 && data.teams.length === 0) {
+          console.warn('Prevented auto-polling from wiping local teams');
+          return prevTeams;
+        }
+        return data.teams;
+      });
+    }
+
+    if (data.groups && typeof data.groups === 'object') {
+      setGroups((prevGroups) => {
+        // Safety guard: if local groups have assigned teams, but incoming data has 0 teams across all groups, preserve local groups
+        const prevTeamsInGroups = Object.values(prevGroups).reduce((acc, list) => acc + (list?.length || 0), 0);
+        const incomingTeamsInGroups = Object.values(data.groups).reduce((acc, list) => acc + (list?.length || 0), 0);
+        if (prevTeamsInGroups > 0 && incomingTeamsInGroups === 0) {
+          console.warn('Prevented auto-polling from wiping teams inside groups');
+          return prevGroups;
+        }
+        return data.groups;
+      });
+    }
+
     if (Array.isArray(data.matches)) setMatches(data.matches);
     if (data.knockoutStartingRound) setKnockoutStartingRound(data.knockoutStartingRound);
     if (Array.isArray(data.r16Matches)) setR16Matches(data.r16Matches);
@@ -210,8 +233,11 @@ export default function App() {
       } catch (err) {
         console.error('Failed to load tournament data:', err);
         if (isMounted) {
-          initialHydratedRef.current = true;
           setDbStatus('ใช้ข้อมูลสำรองในเครื่อง (Offline Mode)');
+          const cached = loadDatabaseSync();
+          if (cached && Array.isArray(cached.teams) && cached.teams.length > 0) {
+            initialHydratedRef.current = true;
+          }
         }
       } finally {
         if (isMounted) {
