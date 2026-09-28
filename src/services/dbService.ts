@@ -386,15 +386,51 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
         });
       }
 
+      // Strip heavy base64 images from backup snapshot to avoid 1MB+ JSON bloat and database statement timeouts
+      const cleanTeamForBackup = (t: Team) => ({
+        id: String(t.id),
+        name: t.name,
+        nameEn: t.nameEn || t.name,
+        shortName: t.shortName,
+        logo: t.logo?.startsWith('data:') ? '' : t.logo || '',
+      });
+
+      const cleanGroupsForBackup: Record<string, any[]> = {};
+      if (data.groups && typeof data.groups === 'object') {
+        Object.entries(data.groups).forEach(([gKey, gTeams]) => {
+          cleanGroupsForBackup[gKey] = Array.isArray(gTeams) ? gTeams.map(cleanTeamForBackup) : [];
+        });
+      }
+
+      const cleanMatchesForBackup = Array.isArray(data.matches)
+        ? data.matches.map((m) => ({
+            id: String(m.id),
+            matchday: m.matchday || 1,
+            matchNumber: m.matchNumber || m.matchday || 1,
+            dateStr: m.dateStr || '',
+            timeStr: m.timeStr || '',
+            round: m.round || 'รอบแบ่งกลุ่ม',
+            group: m.group || '',
+            venue: m.venue || 'สนามหลัก',
+            team1: { id: m.team1?.id, name: m.team1?.name || '-' },
+            team2: { id: m.team2?.id, name: m.team2?.name || '-' },
+            score1: m.score1 ?? 0,
+            score2: m.score2 ?? 0,
+            status: m.status || 'UPCOMING',
+            statusLabel: m.statusLabel || '',
+            currentMinute: m.currentMinute || '',
+          }))
+        : [];
+
       const bracketPayload = {
         r16Matches: data.r16Matches,
         qfMatches: data.qfMatches,
         sfMatches: data.sfMatches,
         finalMatch: data.finalMatch,
         matchDetails,
-        teamsBackup: Array.isArray(data.teams) ? data.teams : [],
-        groupsBackup: data.groups && typeof data.groups === 'object' ? data.groups : {},
-        matchesBackup: Array.isArray(data.matches) ? data.matches : [],
+        teamsBackup: Array.isArray(data.teams) ? data.teams.map(cleanTeamForBackup) : [],
+        groupsBackup: cleanGroupsForBackup,
+        matchesBackup: cleanMatchesForBackup,
       };
 
       let { error: tourneyErr } = await supabase.from('tournaments').upsert({
