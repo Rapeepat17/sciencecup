@@ -155,8 +155,8 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
             players: playersByTeam[String(t.id)] || [],
           }));
 
-          // Backup fallback for teams: If relational table returned 0 teams but bracketData backup has teams
-          if (teams.length === 0 && teamsBackup.length > 0) {
+          // Backup fallback for teams: ONLY if relational table query failed with an error
+          if (teamsRes.error && teams.length === 0 && teamsBackup.length > 0) {
             teams = teamsBackup;
           }
 
@@ -170,29 +170,27 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
             groups[g.name] = teamsInGroup;
           });
 
-          // Backup fallback for groups: If reconstructed groups have 0 teams, but backup has teams in groups
+          // Backup fallback for groups: ONLY if groups query failed with an error
           const totalTeamsInReconstructed = Object.values(groups).reduce((acc, tList) => acc + (tList?.length || 0), 0);
           const totalTeamsInBackup = Object.values(groupsBackup).reduce((acc, tList) => acc + (tList?.length || 0), 0);
-          if (totalTeamsInReconstructed === 0 && totalTeamsInBackup > 0) {
+          if ((groupsRes.error || groupTeamsRes.error) && totalTeamsInReconstructed === 0 && totalTeamsInBackup > 0) {
             groups = groupsBackup;
-          } else if (Object.keys(groups).length === 0 && Object.keys(groupsBackup).length > 0) {
+          } else if ((groupsRes.error || groupTeamsRes.error) && Object.keys(groups).length === 0 && Object.keys(groupsBackup).length > 0) {
             groups = groupsBackup;
           }
 
-          // LocalStorage fallback protection: If cloud returned 0 teams, preserve local cache rather than wiping
-          try {
-            const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (cached) {
-              const localParsed = JSON.parse(cached);
-              if (teams.length === 0 && Array.isArray(localParsed.teams) && localParsed.teams.length > 0) {
-                teams = localParsed.teams;
-                const localTotalTeamsInGroups = Object.values(localParsed.groups || {}).reduce((acc: number, tList: any) => acc + (tList?.length || 0), 0);
-                if (totalTeamsInReconstructed === 0 && localTotalTeamsInGroups > 0) {
-                  groups = localParsed.groups;
+          // LocalStorage fallback protection: ONLY if teams query had an error
+          if (teamsRes.error) {
+            try {
+              const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+              if (cached) {
+                const localParsed = JSON.parse(cached);
+                if (teams.length === 0 && Array.isArray(localParsed.teams) && localParsed.teams.length > 0) {
+                  teams = localParsed.teams;
                 }
               }
-            }
-          } catch {}
+            } catch {}
+          }
 
           // Reconstruct bracket from tourney.bracket_data if available
           const matchDetails = bracketData.matchDetails || {};
@@ -381,47 +379,51 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
       }
 
       // 2. Teams and Players (MUST complete BEFORE groups to satisfy Foreign Key constraints)
-      if (Array.isArray(data.teams) && data.teams.length > 0) {
-        const teamsPayload = data.teams.map((t) => ({
-          id: String(t.id),
-          name: t.name,
-          name_en: t.nameEn || t.name,
-          short_name: t.shortName || t.name.slice(0, 3).toUpperCase(),
-          logo: t.logo || '',
-        }));
+      if (Array.isArray(data.teams)) {
+        if (data.teams.length > 0) {
+          const teamsPayload = data.teams.map((t) => ({
+            id: String(t.id),
+            name: t.name,
+            name_en: t.nameEn || t.name,
+            short_name: t.shortName || t.name.slice(0, 3).toUpperCase(),
+            logo: t.logo || '',
+          }));
 
-        await supabase.from('teams').upsert(teamsPayload);
+          await supabase.from('teams').upsert(teamsPayload);
 
-        // Delete only removed teams safely
-        const currentTeamIds = data.teams.map((t) => String(t.id));
-        const formattedIds = `("${currentTeamIds.join('","')}")`;
-        await supabase.from('players').delete().not('team_id', 'in', formattedIds);
-        await supabase.from('teams').delete().not('id', 'in', formattedIds);
+          // Delete only removed teams safely
+          const currentTeamIds = data.teams.map((t) => String(t.id));
+          const formattedIds = `("${currentTeamIds.join('","')}")`;
+          await supabase.from('players').delete().not('team_id', 'in', formattedIds);
+          await supabase.from('teams').delete().not('id', 'in', formattedIds);
 
-        // Save players
-        const playersPayload: any[] = [];
-        data.teams.forEach((t) => {
-          if (Array.isArray(t.players)) {
-            t.players.forEach((p) => {
-              playersPayload.push({
-                id: String(p.id),
-                team_id: String(t.id),
-                name: p.name,
-                number: String(p.number || ''),
-                position: p.position || 'กองหน้า',
+          // Save players
+          const playersPayload: any[] = [];
+          data.teams.forEach((t) => {
+            if (Array.isArray(t.players)) {
+              t.players.forEach((p) => {
+                playersPayload.push({
+                  id: String(p.id),
+                  team_id: String(t.id),
+                  name: p.name,
+                  number: String(p.number || ''),
+                  position: p.position || 'กองหน้า',
+                });
               });
-            });
-          }
-        });
+            }
+          });
 
-        if (playersPayload.length > 0) {
-          await supabase.from('players').upsert(playersPayload);
-          const playerIds = playersPayload.map((p) => String(p.id));
-          await supabase.from('players').delete().not('id', 'in', `("${playerIds.join('","')}")`);
+          if (playersPayload.length > 0) {
+            await supabase.from('players').upsert(playersPayload);
+            const playerIds = playersPayload.map((p) => String(p.id));
+            await supabase.from('players').delete().not('id', 'in', `("${playerIds.join('","')}")`);
+          }
+        } else {
+          // If data.teams is empty array ([]), user deleted all teams or cleared teams
+          await supabase.from('players').delete().neq('id', '___');
+          await supabase.from('teams').delete().neq('id', '___');
         }
       }
-      // Note: If data.teams is empty during auto-save, we deliberately DO NOT delete all teams!
-      // Global database wipe is only allowed through explicit resetDatabase().
 
       // 3. Groups & Group Teams (Runs AFTER teams are upserted so Foreign Key team_id always exists)
       const groupNames = data.groups && typeof data.groups === 'object' ? Object.keys(data.groups) : [];
