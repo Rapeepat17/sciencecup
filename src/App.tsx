@@ -15,7 +15,7 @@ import {
   INITIAL_SF_MATCHES,
   INITIAL_FINAL_MATCH,
 } from './data/bracketData';
-import { fetchDatabase, saveDatabase, resetDatabase as resetDbService, loadDatabaseSync } from './services/dbService';
+import { fetchDatabase, saveDatabase, resetDatabase as resetDbService, loadDatabaseSync, LOCAL_STORAGE_KEY } from './services/dbService';
 import { generateInterleavedRoundRobinMatches } from './utils/fixtureGenerator';
 import { calculateGroupStandings, resolveSeedFromStandings, isSeedPlaceholder } from './utils/standingsCalculator';
 import { Header } from './components/Header';
@@ -159,24 +159,28 @@ export default function App() {
   const lastUpdatedAtRef = useRef<number>(initialDb.updatedAt || 0);
   const lastLocalEditTimeRef = useRef<number>(0);
 
-  const applyDatabaseData = useCallback((data: TournamentDatabaseData) => {
+  const applyDatabaseData = useCallback((data: TournamentDatabaseData, isInitial: boolean = false) => {
     if (!data) return;
 
-    // Do not apply polling updates if user made local edits recently (within last 5 seconds)
-    if (Date.now() - lastLocalEditTimeRef.current < 5000) {
-      return;
-    }
+    if (!isInitial) {
+      // Do not apply polling updates if user made local edits recently (within last 5 seconds)
+      if (Date.now() - lastLocalEditTimeRef.current < 5000) {
+        return;
+      }
 
-    // Reject stale data if local state has newer edits
-    if (data.updatedAt && lastUpdatedAtRef.current && data.updatedAt < lastUpdatedAtRef.current) {
-      return;
+      // Reject stale data if local state has newer edits
+      if (data.updatedAt && lastUpdatedAtRef.current && data.updatedAt < lastUpdatedAtRef.current) {
+        return;
+      }
     }
 
     const jsonStr = JSON.stringify(data);
-    if (jsonStr === lastJsonRef.current) return;
+    if (!isInitial && jsonStr === lastJsonRef.current) return;
     lastJsonRef.current = jsonStr;
     if (data.updatedAt) {
       lastUpdatedAtRef.current = data.updatedAt;
+    } else {
+      lastUpdatedAtRef.current = Date.now();
     }
 
     if (data.tournamentName) setTournamentName(data.tournamentName);
@@ -206,7 +210,7 @@ export default function App() {
       try {
         const data = await fetchDatabase();
         if (data && isMounted) {
-          applyDatabaseData(data);
+          applyDatabaseData(data, true);
           initialHydratedRef.current = true;
         }
       } catch (err) {
@@ -240,7 +244,7 @@ export default function App() {
     }, 8000);
 
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'scicup_database_v3' && e.newValue) {
+      if ((e.key === LOCAL_STORAGE_KEY || e.key === 'scicup_database_v3') && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
           applyDatabaseData(parsed);
@@ -784,6 +788,10 @@ export default function App() {
   }, [matches, r16Matches, qfMatches, sfMatches, finalMatch, knockoutStartingRound, isKnockoutCreated, isDbLoaded]);
 
   const handleResetDatabase = async () => {
+    const now = Date.now();
+    lastLocalEditTimeRef.current = now;
+    lastUpdatedAtRef.current = now;
+    lastJsonRef.current = '';
     await resetDbService();
     setTournamentName('SCI CUP 2026');
     setTeams([]);
@@ -1034,6 +1042,9 @@ export default function App() {
   };
 
   const handleClearAllTeams = async () => {
+    const now = Date.now();
+    lastLocalEditTimeRef.current = now;
+    lastUpdatedAtRef.current = now;
     setTeams([]);
     setGroups({});
     setMatches([]);
@@ -1049,8 +1060,9 @@ export default function App() {
       finalMatch,
       isBracketLocked,
       isKnockoutCreated,
-      updatedAt: Date.now(),
+      updatedAt: now,
     };
+    lastJsonRef.current = JSON.stringify(payload);
     await saveDatabase(payload);
   };
 

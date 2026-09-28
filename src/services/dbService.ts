@@ -7,10 +7,11 @@ try {
   if (typeof window !== 'undefined' && window.localStorage) {
     localStorage.removeItem('scicup_database_v1');
     localStorage.removeItem('scicup_database_v2');
+    localStorage.removeItem('scicup_database_v3');
   }
 } catch (e) {}
 
-const LOCAL_STORAGE_KEY = 'scicup_database_v3';
+export const LOCAL_STORAGE_KEY = 'scicup_database_v4';
 const SUPABASE_ROW_ID = 'sci_cup_main';
 
 export const DEFAULT_DATABASE_DATA: TournamentDatabaseData = {
@@ -669,13 +670,28 @@ export async function resetDatabase(): Promise<TournamentDatabaseData> {
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await Promise.all([
-        supabase.from('tournaments').delete().eq('id', SUPABASE_ROW_ID),
-        supabase.from('teams').delete().neq('id', '___'),
-        supabase.from('groups').delete().eq('tournament_id', SUPABASE_ROW_ID),
-        supabase.from('matches').delete().eq('tournament_id', SUPABASE_ROW_ID),
-      ]);
-    } catch (err) {}
+      await supabase.from('group_teams').delete().neq('group_id', '___');
+      await supabase.from('groups').delete().eq('tournament_id', SUPABASE_ROW_ID);
+      await supabase.from('matches').delete().eq('tournament_id', SUPABASE_ROW_ID);
+      await supabase.from('players').delete().neq('id', '___');
+      await supabase.from('teams').delete().neq('id', '___');
+      await supabase.from('tournaments').upsert({
+        id: SUPABASE_ROW_ID,
+        name: 'SCI CUP 2026',
+        knockout_starting_round: 'sf',
+        is_bracket_locked: false,
+        is_knockout_created: false,
+        is_user_portal_enabled: true,
+        updated_at: new Date().toISOString(),
+        bracket_data: {
+          teamsBackup: [],
+          groupsBackup: {},
+          matchDetails: {},
+        },
+      });
+    } catch (err) {
+      console.error('Error during database reset:', err);
+    }
   }
 
   return DEFAULT_DATABASE_DATA;
