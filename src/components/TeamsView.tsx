@@ -19,6 +19,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { TeamLogo } from './TeamLogo';
+import { uploadTeamLogo } from '../utils/imageUtils';
 
 interface TeamsViewProps {
   teams: Team[];
@@ -973,13 +974,19 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                       ref={fileInputEditRef}
                       type="file"
                       accept="image/*"
-                      onChange={(e) => {
+                      onChange={async (e) => {
                         if (e.target.files && e.target.files[0]) {
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            if (ev.target?.result) setEditLogo(ev.target.result as string);
-                          };
-                          reader.readAsDataURL(e.target.files[0]);
+                          const file = e.target.files[0];
+                          try {
+                            const logoUrl = await uploadTeamLogo(file, `team_${selectedTeam?.id || Date.now()}`);
+                            if (logoUrl) setEditLogo(logoUrl);
+                          } catch {
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              if (ev.target?.result) setEditLogo(ev.target.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
                         }
                       }}
                       className="hidden"
@@ -1297,13 +1304,19 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                   ref={fileInputCreateRef}
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     if (e.target.files && e.target.files[0]) {
-                      const reader = new FileReader();
-                      reader.onload = (ev) => {
-                        if (ev.target?.result) setNewTeamLogo(ev.target.result as string);
-                      };
-                      reader.readAsDataURL(e.target.files[0]);
+                      const file = e.target.files[0];
+                      try {
+                        const logoUrl = await uploadTeamLogo(file, `new_team_${Date.now()}`);
+                        if (logoUrl) setNewTeamLogo(logoUrl);
+                      } catch {
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          if (ev.target?.result) setNewTeamLogo(ev.target.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
                     }
                   }}
                   className="hidden"

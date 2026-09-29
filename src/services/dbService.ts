@@ -171,13 +171,32 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
             groups[g.name] = teamsInGroup;
           });
 
-          // Backup fallback for groups: ONLY if groups query failed with an error
-          const totalTeamsInReconstructed = Object.values(groups).reduce((acc, tList) => acc + (tList?.length || 0), 0);
-          const totalTeamsInBackup = Object.values(groupsBackup).reduce((acc, tList) => acc + (tList?.length || 0), 0);
-          if ((groupsRes.error || groupTeamsRes.error) && totalTeamsInReconstructed === 0 && totalTeamsInBackup > 0) {
-            groups = groupsBackup;
-          } else if ((groupsRes.error || groupTeamsRes.error) && Object.keys(groups).length === 0 && Object.keys(groupsBackup).length > 0) {
-            groups = groupsBackup;
+          // Per-group backup recovery: if a group in reconstructed groups is empty or missing, but groupsBackup has teams
+          if (groupsBackup && typeof groupsBackup === 'object') {
+            Object.entries(groupsBackup).forEach(([gName, bTeams]) => {
+              if (Array.isArray(bTeams) && bTeams.length > 0) {
+                if (!groups[gName] || groups[gName].length === 0) {
+                  const resolvedTeams = bTeams.map((bt) => {
+                    const existing = teams.find((t) => String(t.id) === String(bt.id));
+                    return existing || bt;
+                  });
+                  groups[gName] = resolvedTeams;
+                }
+              }
+            });
+          }
+
+          // Restore team logos from backup if logo was empty in relational query
+          if (teamsBackup && teamsBackup.length > 0) {
+            teams = teams.map((t) => {
+              if (!t.logo) {
+                const bTeam = teamsBackup.find((bt) => String(bt.id) === String(t.id));
+                if (bTeam?.logo) {
+                  return { ...t, logo: bTeam.logo };
+                }
+              }
+              return t;
+            });
           }
 
           // LocalStorage fallback protection: ONLY if teams query had an error
@@ -386,13 +405,13 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
         });
       }
 
-      // Strip heavy base64 images from backup snapshot to avoid 1MB+ JSON bloat and database statement timeouts
+      // Preserve logos in backup snapshot unless abnormally massive (>250KB)
       const cleanTeamForBackup = (t: Team) => ({
         id: String(t.id),
         name: t.name,
         nameEn: t.nameEn || t.name,
         shortName: t.shortName,
-        logo: t.logo?.startsWith('data:') ? '' : t.logo || '',
+        logo: (t.logo && t.logo.length > 250000) ? '' : (t.logo || ''),
       });
 
       const cleanGroupsForBackup: Record<string, any[]> = {};
@@ -542,11 +561,26 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
                 points: stat ? stat.pts : 0,
               };
             });
-            await supabase.from('group_teams').delete().eq('group_id', gId);
-            const { error: gtInsertErr } = await supabase.from('group_teams').insert(gtPayload);
-            if (gtInsertErr) {
-              console.warn(`Failed to insert group_teams for ${gName}:`, gtInsertErr);
+
+            // Upsert team records into group_teams
+            const { error: upsertErr } = await supabase
+              .from('group_teams')
+              .upsert(gtPayload, { onConflict: 'group_id,team_id' });
+
+            if (upsertErr) {
+              // Fallback replace only if composite upsert failed
+              console.warn(`Upsert group_teams for ${gName} fallback:`, upsertErr);
+              await supabase.from('group_teams').delete().eq('group_id', gId);
+              await supabase.from('group_teams').insert(gtPayload);
             }
+
+            // Remove only teams that are no longer assigned to this group
+            const formattedIds = `("${uniqueTeamIds.join('","')}")`;
+            await supabase
+              .from('group_teams')
+              .delete()
+              .eq('group_id', gId)
+              .not('team_id', 'in', formattedIds);
           } else {
             await supabase.from('group_teams').delete().eq('group_id', gId);
           }

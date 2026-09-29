@@ -24,6 +24,8 @@ import {
   Save,
 } from 'lucide-react';
 
+import { uploadTeamLogo } from '../utils/imageUtils';
+
 interface TournamentSetupViewProps {
   teams: Team[];
   setTeams: React.Dispatch<React.SetStateAction<Team[]>>;
@@ -120,20 +122,27 @@ export const TournamentSetupView: React.FC<TournamentSetupViewProps> = ({
     };
   };
 
-  // Helper to handle image file upload (PNG, JPG, SVG, WebP)
-  const handleImageFileChange = (file: File) => {
+  // Helper to handle image file upload (PNG, JPG, SVG, WebP) with auto-compression & storage
+  const handleImageFileChange = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('กรุณาเลือกไฟล์รูปภาพที่ถูกต้อง (PNG, JPG, WEBP, SVG)');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      if (result) {
-        setModalTeamLogo(result);
+    try {
+      const logoUrl = await uploadTeamLogo(file, `team_${Date.now()}`);
+      if (logoUrl) {
+        setModalTeamLogo(logoUrl);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        if (result) {
+          setModalTeamLogo(result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Open modal with clean state

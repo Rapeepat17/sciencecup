@@ -185,8 +185,41 @@ export default function App() {
 
     if (data.tournamentName) setTournamentName(data.tournamentName);
 
-    if (Array.isArray(data.teams)) setTeams(data.teams);
-    if (data.groups && typeof data.groups === 'object') setGroups(data.groups);
+    if (Array.isArray(data.teams)) {
+      setTeams((prevTeams) => {
+        // Preserve existing logos if incoming query returned empty logo for a team
+        return data.teams.map((inTeam) => {
+          if (!inTeam.logo) {
+            const existing = prevTeams.find((pt) => String(pt.id) === String(inTeam.id));
+            if (existing?.logo) {
+              return { ...inTeam, logo: existing.logo };
+            }
+          }
+          return inTeam;
+        });
+      });
+    }
+
+    if (data.groups && typeof data.groups === 'object') {
+      setGroups((prevGroups) => {
+        if (isInitial || !prevGroups || Object.keys(prevGroups).length === 0) {
+          return data.groups;
+        }
+        // Safety Guard: Don't let polling wipe out an existing non-empty group with an empty array []
+        const merged: GroupMap = { ...prevGroups };
+        Object.keys(data.groups).forEach((gKey) => {
+          const incomingList = data.groups[gKey] || [];
+          const existingList = prevGroups[gKey] || [];
+          if (incomingList.length === 0 && existingList.length > 0 && !isInitial) {
+            // Keep local non-empty group
+            merged[gKey] = existingList;
+          } else {
+            merged[gKey] = incomingList;
+          }
+        });
+        return merged;
+      });
+    }
 
     if (Array.isArray(data.matches)) {
       // Safety guard: Never let background polling with 0 matches wipe out existing matches in state
@@ -335,10 +368,11 @@ export default function App() {
             (t) => String(t.id) === String(gTeam.id)
           );
           if (matchingTeam) {
+            const resolvedLogo = matchingTeam.logo || gTeam.logo || '';
             if (
               gTeam.name !== matchingTeam.name ||
               gTeam.shortName !== matchingTeam.shortName ||
-              gTeam.logo !== matchingTeam.logo ||
+              (matchingTeam.logo && gTeam.logo !== matchingTeam.logo) ||
               gTeam.color !== matchingTeam.color
             ) {
               changed = true;
@@ -347,7 +381,7 @@ export default function App() {
                 name: matchingTeam.name,
                 nameEn: matchingTeam.nameEn || matchingTeam.name,
                 shortName: matchingTeam.shortName,
-                logo: matchingTeam.logo,
+                logo: resolvedLogo,
                 color: matchingTeam.color,
                 badgeIcon: matchingTeam.badgeIcon,
               };
