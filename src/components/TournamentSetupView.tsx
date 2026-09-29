@@ -544,7 +544,7 @@ export const TournamentSetupView: React.FC<TournamentSetupViewProps> = ({
                     className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#f5f3f3] hover:bg-[#efeded] border border-[#efeded] transition-all group"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <TeamLogo logo={team.logo} name={team.name} className="w-7 h-7" />
+                      <TeamLogo id={team.id} logo={team.logo} name={team.name} className="w-7 h-7" />
 
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-[#1b1c1c] truncate leading-tight">
@@ -740,7 +740,7 @@ export const TournamentSetupView: React.FC<TournamentSetupViewProps> = ({
                             <span className="w-5 h-5 rounded-md bg-[#f5f3f3] text-[#4b4737] font-bold text-[10px] flex items-center justify-center shrink-0">
                               {idx + 1}
                             </span>
-                            <TeamLogo logo={team.logo} name={team.name} className="w-6 h-6" />
+                            <TeamLogo id={team.id} logo={team.logo} name={team.name} className="w-6 h-6" />
                             <span className="text-xs font-bold text-[#1b1c1c] truncate">
                               {team.name}
                             </span>

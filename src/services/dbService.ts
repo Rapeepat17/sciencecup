@@ -2,6 +2,7 @@ import { TournamentDatabaseData, Team, Player, Match, GroupMap, BracketMatchup }
 import { INITIAL_R16_MATCHES, INITIAL_QF_MATCHES, INITIAL_SF_MATCHES, INITIAL_FINAL_MATCH } from '../data/bracketData';
 import { calculateGroupStandings } from '../utils/standingsCalculator';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { getPersistedLogo, savePersistedLogo, persistAllTeamLogos } from '../utils/logoStorage';
 
 try {
   if (typeof window !== 'undefined' && window.localStorage) {
@@ -146,15 +147,23 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
             });
           });
 
-          // Map teams from relational table
-          let teams: Team[] = teamsData.map((t: any) => ({
-            id: String(t.id),
-            name: t.name,
-            nameEn: t.name_en || t.name,
-            shortName: t.short_name,
-            logo: t.logo || '',
-            players: playersByTeam[String(t.id)] || [],
-          }));
+          // Map teams from relational table and auto-rehydrate logos from persistent cache
+          let teams: Team[] = teamsData.map((t: any) => {
+            const rawLogo = t.logo || '';
+            const logo = rawLogo.trim() !== '' ? rawLogo : getPersistedLogo(t.id, t.name);
+            if (logo) {
+              savePersistedLogo(String(t.id), logo);
+              if (t.name) savePersistedLogo(t.name, logo);
+            }
+            return {
+              id: String(t.id),
+              name: t.name,
+              nameEn: t.name_en || t.name,
+              shortName: t.short_name,
+              logo,
+              players: playersByTeam[String(t.id)] || [],
+            };
+          });
 
           // Backup fallback for teams: ONLY if relational table query failed with an error
           if (teamsRes.error && teams.length === 0 && teamsBackup.length > 0) {
@@ -360,6 +369,11 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
  * Sequential & Safe Save to Supabase Cloud Database with Redundant Backup
  */
 export async function saveDatabase(data: TournamentDatabaseData): Promise<boolean> {
+  // Persist all team logos locally immediately
+  if (Array.isArray(data.teams)) {
+    persistAllTeamLogos(data.teams);
+  }
+
   // Update LocalStorage cache immediately
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data));

@@ -1,9 +1,11 @@
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
+import { savePersistedLogo } from './logoStorage';
 
 /**
- * Compresses an image file client-side to max 256x256 WebP/PNG (~20-40KB)
+ * Compresses an image file client-side to max 128x128 WebP/PNG (~4-8KB)
+ * Optimal for avatar/logo badges while minimizing storage size.
  */
-export async function compressImage(file: File, maxSize: number = 256): Promise<string> {
+export async function compressImage(file: File, maxSize: number = 128): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
@@ -39,7 +41,7 @@ export async function compressImage(file: File, maxSize: number = 256): Promise<
 
         // Try webp first, fallback to png
         try {
-          const webpData = canvas.toDataURL('image/webp', 0.88);
+          const webpData = canvas.toDataURL('image/webp', 0.85);
           if (webpData && webpData.startsWith('data:image/webp')) {
             resolve(webpData);
             return;
@@ -74,18 +76,20 @@ function dataUrlToBlob(dataUrl: string): { blob: Blob; ext: string } {
 /**
  * Uploads an image to Supabase Storage 'team-logos' bucket if available,
  * otherwise returns compressed base64 data URL.
+ * Also persists the logo locally so it NEVER gets lost.
  */
 export async function uploadTeamLogo(fileOrDataUrl: File | string, teamId: string): Promise<string> {
   let compressedDataUrl = '';
 
   if (typeof fileOrDataUrl === 'string') {
     if (fileOrDataUrl.startsWith('http://') || fileOrDataUrl.startsWith('https://')) {
+      savePersistedLogo(teamId, fileOrDataUrl);
       return fileOrDataUrl;
     }
     compressedDataUrl = fileOrDataUrl;
   } else {
     try {
-      compressedDataUrl = await compressImage(fileOrDataUrl, 256);
+      compressedDataUrl = await compressImage(fileOrDataUrl, 128);
     } catch {
       // Fallback direct reader
       compressedDataUrl = await new Promise((res) => {
@@ -95,6 +99,9 @@ export async function uploadTeamLogo(fileOrDataUrl: File | string, teamId: strin
       });
     }
   }
+
+  // Persist locally immediately
+  savePersistedLogo(teamId, compressedDataUrl);
 
   // If Supabase is configured, try uploading to Storage bucket
   if (isSupabaseConfigured && supabase) {
@@ -116,6 +123,7 @@ export async function uploadTeamLogo(fileOrDataUrl: File | string, teamId: strin
           .getPublicUrl(filePath);
 
         if (publicUrlData?.publicUrl) {
+          savePersistedLogo(teamId, publicUrlData.publicUrl);
           return publicUrlData.publicUrl;
         }
       }

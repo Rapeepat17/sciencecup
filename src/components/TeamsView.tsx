@@ -443,6 +443,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                       {/* Card Header: Logo & Short Name & Action Menu */}
                       <div className="flex items-center justify-between mb-4">
                         <TeamLogo
+                          id={t.id}
                           logo={t.logo}
                           name={t.name}
                           className="w-14 h-14 group-hover:scale-105 transition-transform"
@@ -641,7 +642,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                       {/* Team Logo & Name */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-                          <TeamLogo logo={team.logo} name={team.name} className="w-6 h-6 shrink-0" />
+                          <TeamLogo id={team.id} logo={team.logo} name={team.name} className="w-6 h-6 shrink-0" />
                           <span className="font-bold text-[#1b1c1c] text-xs">{team.name}</span>
                           <span className="text-[10px] text-[#4b4737]">({team.shortName || 'FC'})</span>
                         </div>
@@ -686,7 +687,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-[#ffe680]/50 via-white to-[#f5f3f3] p-5 border-b border-[#efeded] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <TeamLogo logo={selectedTeam.logo} name={selectedTeam.name} className="w-12 h-12 shadow-xs" />
+                <TeamLogo id={selectedTeam.id} logo={selectedTeam.logo} name={selectedTeam.name} className="w-12 h-12 shadow-xs" />
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="font-display font-bold text-lg text-[#1b1c1c]">
