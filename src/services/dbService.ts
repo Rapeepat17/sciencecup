@@ -170,27 +170,34 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
             teams = teamsBackup;
           }
 
-          // Reconstruct groups from relational table
+          // Reconstruct groups from relational table and bracket_data
           let groups: GroupMap = {};
           groupsData.forEach((g: any) => {
             const teamRows = groupTeamsData.filter((gt: any) => gt.group_id === g.id);
             const teamsInGroup = teamRows
-              .map((gt: any) => teams.find((t) => String(t.id) === String(gt.team_id)))
+              .map((gt: any) => teams.find((t) => String(t.id) === String(gt.team_id) || t.name === gt.team_name))
               .filter(Boolean) as Team[];
             groups[g.name] = teamsInGroup;
           });
 
-          // Per-group backup recovery: if a group in reconstructed groups is empty or missing, but groupsBackup has teams
-          if (groupsBackup && typeof groupsBackup === 'object') {
-            Object.entries(groupsBackup).forEach(([gName, bTeams]) => {
+          // Primary & Per-group recovery from bracketData.groups or groupsBackup
+          const sourceGroups: GroupMap =
+            bracketData.groups && typeof bracketData.groups === 'object' && Object.keys(bracketData.groups).length > 0
+              ? bracketData.groups
+              : (groupsBackup && typeof groupsBackup === 'object' ? groupsBackup : {});
+
+          if (sourceGroups && typeof sourceGroups === 'object') {
+            Object.entries(sourceGroups).forEach(([gName, bTeams]) => {
               if (Array.isArray(bTeams) && bTeams.length > 0) {
                 if (!groups[gName] || groups[gName].length === 0) {
                   const resolvedTeams = bTeams.map((bt) => {
-                    const existing = teams.find((t) => String(t.id) === String(bt.id));
+                    const existing = teams.find((t) => String(t.id) === String(bt.id) || t.name === bt.name);
                     return existing || bt;
                   });
                   groups[gName] = resolvedTeams;
                 }
+              } else if (!groups[gName]) {
+                groups[gName] = [];
               }
             });
           }
@@ -461,6 +468,7 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
         sfMatches: data.sfMatches,
         finalMatch: data.finalMatch,
         matchDetails,
+        groups: cleanGroupsForBackup,
         teamsBackup: Array.isArray(data.teams) ? data.teams.map(cleanTeamForBackup) : [],
         groupsBackup: cleanGroupsForBackup,
         matchesBackup: cleanMatchesForBackup,
@@ -558,6 +566,9 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
           const groupStats = standings[gName] || [];
           const statsByTeamId = new Map(groupStats.map((st) => [String(st.team.id), st]));
 
+          // Clean and replace team assignments for this group cleanly
+          await supabase.from('group_teams').delete().eq('group_id', gId);
+
           if (teamsInG.length > 0) {
             const uniqueTeamIds = Array.from(new Set(teamsInG.map((t) => String(t.id))));
             const gtPayload = uniqueTeamIds.map((tId) => {
@@ -576,27 +587,10 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
               };
             });
 
-            // Upsert team records into group_teams
-            const { error: upsertErr } = await supabase
-              .from('group_teams')
-              .upsert(gtPayload, { onConflict: 'group_id,team_id' });
-
-            if (upsertErr) {
-              // Fallback replace only if composite upsert failed
-              console.warn(`Upsert group_teams for ${gName} fallback:`, upsertErr);
-              await supabase.from('group_teams').delete().eq('group_id', gId);
-              await supabase.from('group_teams').insert(gtPayload);
+            const { error: gtInsertErr } = await supabase.from('group_teams').insert(gtPayload);
+            if (gtInsertErr) {
+              console.warn(`Failed to insert group_teams for ${gName}:`, gtInsertErr);
             }
-
-            // Remove only teams that are no longer assigned to this group
-            const formattedIds = `("${uniqueTeamIds.join('","')}")`;
-            await supabase
-              .from('group_teams')
-              .delete()
-              .eq('group_id', gId)
-              .not('team_id', 'in', formattedIds);
-          } else {
-            await supabase.from('group_teams').delete().eq('group_id', gId);
           }
         }
       }
