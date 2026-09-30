@@ -201,34 +201,11 @@ export default function App() {
     }
 
     if (data.groups && typeof data.groups === 'object') {
-      setGroups((prevGroups) => {
-        if (isInitial || !prevGroups || Object.keys(prevGroups).length === 0) {
-          return data.groups;
-        }
-        // Safety Guard: Don't let polling wipe out an existing non-empty group with an empty array []
-        const merged: GroupMap = { ...prevGroups };
-        Object.keys(data.groups).forEach((gKey) => {
-          const incomingList = data.groups[gKey] || [];
-          const existingList = prevGroups[gKey] || [];
-          if (incomingList.length === 0 && existingList.length > 0 && !isInitial) {
-            // Keep local non-empty group
-            merged[gKey] = existingList;
-          } else {
-            merged[gKey] = incomingList;
-          }
-        });
-        return merged;
-      });
+      setGroups(data.groups);
     }
 
     if (Array.isArray(data.matches)) {
-      // Safety guard: Never let background polling with 0 matches wipe out existing matches in state
-      setMatches((prevMatches) => {
-        if (isInitial || data.matches.length > 0 || prevMatches.length === 0) {
-          return data.matches;
-        }
-        return prevMatches;
-      });
+      setMatches(data.matches);
     }
     if (data.knockoutStartingRound) setKnockoutStartingRound(data.knockoutStartingRound);
     if (Array.isArray(data.r16Matches)) setR16Matches(data.r16Matches);

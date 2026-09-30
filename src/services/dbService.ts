@@ -180,26 +180,26 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
             groups[g.name] = teamsInGroup;
           });
 
-          // Primary & Per-group recovery from bracketData.groups or groupsBackup
-          const sourceGroups: GroupMap =
-            bracketData.groups && typeof bracketData.groups === 'object' && Object.keys(bracketData.groups).length > 0
-              ? bracketData.groups
-              : (groupsBackup && typeof groupsBackup === 'object' ? groupsBackup : {});
+          // Fallback protection for groups: ONLY if relational table query failed with an error
+          if ((groupsRes.error || groupTeamsRes.error) && Object.keys(groups).length === 0) {
+            const sourceGroups: GroupMap =
+              bracketData.groups && typeof bracketData.groups === 'object' && Object.keys(bracketData.groups).length > 0
+                ? bracketData.groups
+                : (groupsBackup && typeof groupsBackup === 'object' ? groupsBackup : {});
 
-          if (sourceGroups && typeof sourceGroups === 'object') {
-            Object.entries(sourceGroups).forEach(([gName, bTeams]) => {
-              if (Array.isArray(bTeams) && bTeams.length > 0) {
-                if (!groups[gName] || groups[gName].length === 0) {
+            if (sourceGroups && typeof sourceGroups === 'object') {
+              Object.entries(sourceGroups).forEach(([gName, bTeams]) => {
+                if (Array.isArray(bTeams) && bTeams.length > 0) {
                   const resolvedTeams = bTeams.map((bt) => {
                     const existing = teams.find((t) => String(t.id) === String(bt.id) || t.name === bt.name);
                     return existing || bt;
                   });
                   groups[gName] = resolvedTeams;
+                } else if (!groups[gName]) {
+                  groups[gName] = [];
                 }
-              } else if (!groups[gName]) {
-                groups[gName] = [];
-              }
-            });
+              });
+            }
           }
 
           // Restore team logos from backup if logo was empty in relational query
@@ -307,10 +307,10 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
               scheduledMatches.sort((a, b) => (a.matchNumber || a.matchday || 0) - (b.matchNumber || b.matchday || 0));
             }
 
-            // Fallback protection for matches from bracket_data or localStorage if relational query returned empty
-            if (scheduledMatches.length === 0 && Array.isArray(bracketData.matchesBackup) && bracketData.matchesBackup.length > 0) {
+            // Fallback protection for matches: ONLY if relational query failed with an error
+            if (matchesRes.error && scheduledMatches.length === 0 && Array.isArray(bracketData.matchesBackup) && bracketData.matchesBackup.length > 0) {
               scheduledMatches.push(...bracketData.matchesBackup);
-            } else if (scheduledMatches.length === 0) {
+            } else if (matchesRes.error && scheduledMatches.length === 0) {
               try {
                 const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
                 if (cached) {
@@ -596,12 +596,13 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
       }
 
       // 4. Matches, Goals, and Cards (Runs AFTER groups and teams are saved)
-      if (Array.isArray(data.matches) && data.matches.length > 0) {
-        const { data: currentGroups } = await supabase
-          .from('groups')
-          .select('id, name')
-          .eq('tournament_id', SUPABASE_ROW_ID);
-        const groupNameToId = new Map((currentGroups || []).map((g: any) => [g.name, g.id]));
+      if (Array.isArray(data.matches)) {
+        if (data.matches.length > 0) {
+          const { data: currentGroups } = await supabase
+            .from('groups')
+            .select('id, name')
+            .eq('tournament_id', SUPABASE_ROW_ID);
+          const groupNameToId = new Map((currentGroups || []).map((g: any) => [g.name, g.id]));
         const validTeamIds = new Set((data.teams || []).map((t) => String(t.id)));
 
         const matchesPayload = data.matches.map((m) => {
@@ -745,7 +746,13 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
             await supabase.from('cards').insert(allCardsPayload);
           }
         }
+      } else {
+        // If data.matches is empty array ([]), user deleted all matches
+        await supabase.from('matches').delete().eq('tournament_id', SUPABASE_ROW_ID);
+        await supabase.from('goals').delete().eq('tournament_id', SUPABASE_ROW_ID);
+        await supabase.from('cards').delete().eq('tournament_id', SUPABASE_ROW_ID);
       }
+    }
 
       // 5. Admin Profile
       if (data.adminCredentials) {
