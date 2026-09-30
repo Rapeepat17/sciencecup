@@ -45,6 +45,8 @@ import {
   List,
   Calendar,
   Info,
+  Crown,
+  Medal,
 } from 'lucide-react';
 import { SoccerBall } from './icons/SoccerBall';
 
@@ -690,10 +692,162 @@ export const UserPortalView: React.FC<UserPortalViewProps> = ({
         {activeTab === 'fixtures' && (
           <div className="space-y-6">
             {/* Header / Filter Toolbar */}
-            {/* Featured Live / Playing Match Banner with Faded Photo Background */}
+            {/* Featured Live / Playing Match Banner OR Champions Banner */}
             {(() => {
               const liveMatches = matches.filter((m) => m.status === 'LIVE');
               const upcomingMatches = matches.filter((m) => m.status === 'UPCOMING');
+
+              // Check if Grand Final is finished & Champion is crowned
+              const finalSm = finalMatch
+                ? matches.find((item) => item.id === finalMatch.id)
+                : matches.find((m) => m.round?.includes('ชิงชนะเลิศ') || m.round?.includes('Grand Final'));
+
+              const finalWinnerInfo = getKnockoutMatchWinner(finalSm, finalMatch);
+              const rawChampName =
+                finalWinnerInfo.winnerName ||
+                (finalMatch?.winner === 1
+                  ? finalMatch?.team1?.name
+                  : finalMatch?.winner === 2
+                    ? finalMatch?.team2?.name
+                    : undefined);
+
+              const isRealChampion = Boolean(
+                rawChampName &&
+                rawChampName.trim() !== '' &&
+                rawChampName !== '-' &&
+                !rawChampName.startsWith('ทีมชนะ') &&
+                !rawChampName.startsWith('ผู้ชนะ') &&
+                !rawChampName.startsWith('ทีมที่') &&
+                !rawChampName.includes('รอผล')
+              );
+
+              // If tournament has crowned a Champion and no live matches are currently in progress
+              if (isRealChampion && liveMatches.length === 0) {
+                const champName = rawChampName!.trim();
+                const champLogo = getTeamLogoByName(champName) || '';
+
+                // Find Runner-Up
+                const team1Name = finalSm?.team1?.name || finalMatch?.team1?.name;
+                const team2Name = finalSm?.team2?.name || finalMatch?.team2?.name;
+                const runnerUpRaw =
+                  champName.toLowerCase() === team1Name?.trim().toLowerCase()
+                    ? team2Name
+                    : team1Name;
+
+                const hasValidRunnerUp =
+                  runnerUpRaw &&
+                  runnerUpRaw !== '-' &&
+                  !runnerUpRaw.startsWith('ทีมชนะ') &&
+                  !runnerUpRaw.startsWith('ผู้ชนะ') &&
+                  !runnerUpRaw.startsWith('ทีมที่');
+                const runnerUpName = hasValidRunnerUp ? runnerUpRaw.trim() : undefined;
+
+                // Final Score string
+                const finalScoreDisplay = (() => {
+                  if (finalSm && (finalSm.status === 'FT' || finalSm.currentMinute === 'FT')) {
+                    const p1 = finalSm.penaltyScore1;
+                    const p2 = finalSm.penaltyScore2;
+                    const hasPen = p1 !== undefined && p1 !== null && p2 !== undefined && p2 !== null;
+                    return `${finalSm.score1} - ${finalSm.score2}${hasPen ? ` (จุดโทษ ${p1}-${p2})` : ''}`;
+                  }
+                  if (
+                    finalMatch?.team1?.score !== undefined &&
+                    finalMatch?.team2?.score !== undefined
+                  ) {
+                    const p1 = finalMatch.team1.penaltyScore;
+                    const p2 = finalMatch.team2.penaltyScore;
+                    const hasPen = p1 !== undefined && p1 !== null && p2 !== undefined && p2 !== null;
+                    return `${finalMatch.team1.score} - ${finalMatch.team2.score}${hasPen ? ` (จุดโทษ ${p1}-${p2})` : ''}`;
+                  }
+                  return '';
+                })();
+
+                return (
+                  <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#181308] via-[#0e0c08] to-[#070604] text-white shadow-2xl border border-amber-500/30 p-6 sm:p-9 group">
+                    {/* Top Edge Multi-Color Specular Highlight */}
+                    <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300 via-yellow-200 via-amber-400 to-transparent z-10" />
+
+                    {/* Rich Cosmic Amber & Golden Championship Glow */}
+                    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
+                      <div className="absolute inset-0 bg-gradient-to-b from-[#1c1406] via-[#0d0903] to-[#050402]" />
+
+                      {/* Golden Beam Spotlight */}
+                      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 sm:w-[500px] h-64 bg-gradient-to-b from-amber-400/25 via-yellow-500/10 to-transparent blur-3xl rounded-full" />
+                      <div className="absolute -top-12 -left-12 w-80 h-80 bg-gradient-to-br from-amber-500/20 via-yellow-600/10 to-transparent blur-3xl rounded-full" />
+                      <div className="absolute -bottom-12 -right-12 w-80 h-80 bg-gradient-to-tl from-amber-600/20 via-yellow-500/10 to-transparent blur-3xl rounded-full" />
+
+                      {/* Geometric Pitch Texture Grid Lines */}
+                      <div
+                        className="absolute inset-0 opacity-[0.04]"
+                        style={{
+                          backgroundImage: `linear-gradient(to right, #f59e0b 1px, transparent 1px), linear-gradient(to bottom, #f59e0b 1px, transparent 1px)`,
+                          backgroundSize: '36px 36px',
+                        }}
+                      />
+
+                      {/* Victory Rings */}
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 sm:w-[420px] h-80 sm:h-[420px] border border-amber-400/[0.08] rounded-full" />
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-44 sm:w-56 h-44 sm:h-56 border border-amber-300/[0.06] rounded-full" />
+                    </div>
+
+                    {/* Header Strip */}
+                    <div className="relative z-10 mb-4 text-center flex flex-col items-center">
+                      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/10 text-amber-300 text-xs font-bold tracking-widest uppercase border border-amber-400/30 shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                        <Trophy className="w-4 h-4 text-amber-400" />
+                        <span>TOURNAMENT CHAMPION</span>
+                      </div>
+                    </div>
+
+                    {/* Main Showcase */}
+                    <div className="relative z-10 flex flex-col items-center text-center max-w-xl mx-auto py-1 sm:py-2">
+                      {/* Champion Crown + Logo */}
+                      <div className="relative mb-3.5">
+                        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 w-8 h-8 rounded-full bg-gradient-to-br from-amber-300 to-amber-600 flex items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.6)] border border-amber-200">
+                          <Crown className="w-4.5 h-4.5 text-black" />
+                        </div>
+                        <div className="p-2 rounded-full bg-gradient-to-br from-amber-300/30 via-yellow-500/20 to-amber-900/40 ring-2 ring-amber-400/70 shadow-[0_0_35px_rgba(245,158,11,0.4)] backdrop-blur-xs transition-transform duration-300 group-hover:scale-105">
+                          <TeamLogo
+                            logo={champLogo}
+                            name={champName}
+                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Team Name Title */}
+                      <h2 className="font-display font-black text-2xl sm:text-4xl text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-400 tracking-wider uppercase drop-shadow-[0_2px_12px_rgba(245,158,11,0.4)]">
+                        {champName}
+                      </h2>
+                      <p className="text-xs sm:text-sm text-amber-200/80 font-medium tracking-wide mt-1">
+                        ชนะเลิศการแข่งขันฟุตบอล {tournamentName || 'SCICUP 2026'}
+                      </p>
+
+                      {/* Honor Badges Bar */}
+                      <div className="mt-5 w-full pt-4 border-t border-amber-500/20 flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 text-xs">
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-400/10 border border-amber-400/30 text-amber-300">
+                          <Medal className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span className="font-semibold">ชนะเลิศ: {champName}</span>
+                        </div>
+
+                        {runnerUpName && (
+                          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-zinc-300">
+                            <Award className="w-4 h-4 text-zinc-400 shrink-0" />
+                            <span className="font-medium">รองชนะเลิศ: {runnerUpName}</span>
+                          </div>
+                        )}
+
+                        {finalScoreDisplay && (
+                          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-zinc-300">
+                            <SoccerBall className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                            <span className="font-medium">ผลนัดชิง: {finalScoreDisplay}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               const featuredMatch = liveMatches[0] || upcomingMatches[0] || matches[0];
 
               if (!featuredMatch) return null;
