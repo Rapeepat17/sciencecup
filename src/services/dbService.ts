@@ -635,9 +635,15 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
           };
         });
 
-        await supabase.from('matches').upsert(matchesPayload);
-        const currentMatchIds = `("${matchesPayload.map((m) => m.id).join('","')}")`;
-        await supabase.from('matches').delete().eq('tournament_id', SUPABASE_ROW_ID).not('id', 'in', currentMatchIds);
+        if (matchesPayload.length > 0) {
+          await supabase.from('matches').upsert(matchesPayload);
+          const currentMatchIds = `("${matchesPayload.map((m) => m.id).join('","')}")`;
+          await supabase.from('matches').delete().eq('tournament_id', SUPABASE_ROW_ID).not('id', 'in', currentMatchIds);
+        } else {
+          await supabase.from('matches').delete().eq('tournament_id', SUPABASE_ROW_ID);
+          await supabase.from('goals').delete().eq('tournament_id', SUPABASE_ROW_ID);
+          await supabase.from('cards').delete().eq('tournament_id', SUPABASE_ROW_ID);
+        }
 
         // Extract and sync goals and cards
         const allGoalsPayload: any[] = [];

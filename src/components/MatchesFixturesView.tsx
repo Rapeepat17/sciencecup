@@ -23,8 +23,11 @@ import {
   SlidersHorizontal,
   Sparkles,
   Save,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { SoccerBall } from './icons/SoccerBall';
+import { generateInterleavedRoundRobinMatches } from '../utils/fixtureGenerator';
 import * as XLSX from 'xlsx';
 
 export const formatMatchGroupLabel = (group?: string, round?: string): string => {
@@ -157,6 +160,19 @@ export const MatchesFixturesView: React.FC<MatchesFixturesViewProps> = ({
 
   const [reportModalMatch, setReportModalMatch] = useState<Match | null>(null);
   const [rosterModalMatch, setRosterModalMatch] = useState<Match | null>(null);
+  const [isClearModalOpen, setIsClearModalOpen] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleConfirmClearAllMatches = () => {
+    setMatches([]);
+    setIsClearModalOpen(false);
+    showToast('ล้างโปรแกรมการแข่งขันทั้งหมดเรียบร้อยแล้ว');
+  };
 
   // Dynamic group options from groups and matches
   const availableGroupKeys: string[] = Object.keys(groups || {});
@@ -742,6 +758,18 @@ export const MatchesFixturesView: React.FC<MatchesFixturesViewProps> = ({
             <SlidersHorizontal className="w-4 h-4 text-[#6f5d00]" />
             <span>ตั้งเวลาแข่งอัตโนมัติ</span>
           </button>
+
+          {matches.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsClearModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-50 text-rose-700 font-display font-bold text-xs shadow-xs border border-rose-200 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer"
+              title="ล้างโปรแกรมการแข่งขันทั้งหมด"
+            >
+              <Trash2 className="w-4 h-4 text-rose-600" />
+              <span>ล้างโปรแกรมแข่ง</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -799,13 +827,36 @@ export const MatchesFixturesView: React.FC<MatchesFixturesViewProps> = ({
 
       {/* Match Cards Container */}
       {matches.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center text-[#4b4737] border border-[#efeded] shadow-xs space-y-3">
+        <div className="bg-white rounded-3xl p-12 text-center text-[#4b4737] border border-[#efeded] shadow-xs space-y-4">
           <div className="w-16 h-16 rounded-3xl bg-[#ffe680]/40 text-[#786607] flex items-center justify-center mx-auto">
             <Zap className="w-8 h-8" />
           </div>
-          <h3 className="font-display font-bold text-lg text-[#1b1c1c]">
-            ยังไม่มีโปรแกรมการแข่งขันในระบบ
-          </h3>
+          <div className="space-y-1">
+            <h3 className="font-display font-bold text-lg text-[#1b1c1c]">
+              ยังไม่มีโปรแกรมการแข่งขันในระบบ
+            </h3>
+            <p className="text-xs text-[#4b4737]">
+              คุณสามารถสร้างโปรแกรมการแข่งขันอัตโนมัติจากกลุ่มที่มีอยู่ได้ทันที
+            </p>
+          </div>
+          {groups && Object.values(groups).some((g) => Array.isArray(g) && g.length >= 2) && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const generated = generateInterleavedRoundRobinMatches(groups);
+                  if (generated.length > 0) {
+                    setMatches(generated);
+                    showToast(`สร้างโปรแกรมการแข่งขันอัตโนมัติสำเร็จ (${generated.length} คู่)`);
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#1b1c1c] text-[#ffe680] font-display font-bold text-xs shadow-md hover:bg-black transition-all cursor-pointer"
+              >
+                <Zap className="w-4 h-4 text-[#ffe680]" />
+                <span>สร้างโปรแกรมแข่งขันรอบแบ่งกลุ่มอัตโนมัติ</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : filteredMatches.length === 0 ? (
         <div className="bg-white rounded-3xl p-12 text-center text-[#4b4737] border border-[#efeded]">
@@ -2194,6 +2245,53 @@ export const MatchesFixturesView: React.FC<MatchesFixturesViewProps> = ({
                 รับทราบ
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Clearing All Matches */}
+      {isClearModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-rose-100 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-xs">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="font-display font-bold text-lg text-zinc-900">
+                ยืนยันการล้างโปรแกรมการแข่งขัน?
+              </h3>
+              <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed">
+                การดำเนินการนี้จะล้างแมตช์การแข่งขันทั้งหมด ({matches.length} คู่) ในระบบ รวมถึงผลสกอร์และสถิติทั้งหมด (สามารถกดสร้างโปรแกรมใหม่อัตโนมัติได้ภายหลัง)
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsClearModalOpen(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-zinc-200 text-zinc-700 text-xs font-bold hover:bg-zinc-50 transition-colors cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearAllMatches}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>ยืนยันล้างข้อมูล</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Alert */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="bg-[#1b1c1c] text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3 text-xs font-medium">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{toastMessage}</span>
           </div>
         </div>
       )}
