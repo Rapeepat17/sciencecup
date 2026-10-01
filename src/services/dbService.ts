@@ -170,36 +170,31 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
             teams = teamsBackup;
           }
 
-          // Reconstruct groups from relational table and bracket_data
+          // Reconstruct groups reliably from tournament bracket_data or relational tables
           let groups: GroupMap = {};
-          groupsData.forEach((g: any) => {
-            const teamRows = groupTeamsData.filter((gt: any) => gt.group_id === g.id);
-            const teamsInGroup = teamRows
-              .map((gt: any) => teams.find((t) => String(t.id) === String(gt.team_id) || t.name === gt.team_name))
-              .filter(Boolean) as Team[];
-            groups[g.name] = teamsInGroup;
-          });
 
-          // Fallback protection for groups: ONLY if relational table query failed with an error
-          if ((groupsRes.error || groupTeamsRes.error) && Object.keys(groups).length === 0) {
-            const sourceGroups: GroupMap =
-              bracketData.groups && typeof bracketData.groups === 'object' && Object.keys(bracketData.groups).length > 0
-                ? bracketData.groups
-                : (groupsBackup && typeof groupsBackup === 'object' ? groupsBackup : {});
-
-            if (sourceGroups && typeof sourceGroups === 'object') {
-              Object.entries(sourceGroups).forEach(([gName, bTeams]) => {
-                if (Array.isArray(bTeams) && bTeams.length > 0) {
-                  const resolvedTeams = bTeams.map((bt) => {
-                    const existing = teams.find((t) => String(t.id) === String(bt.id) || t.name === bt.name);
-                    return existing || bt;
-                  });
-                  groups[gName] = resolvedTeams;
-                } else if (!groups[gName]) {
-                  groups[gName] = [];
-                }
-              });
-            }
+          if (bracketData.groups && typeof bracketData.groups === 'object') {
+            Object.entries(bracketData.groups).forEach(([gName, gTeams]) => {
+              if (Array.isArray(gTeams)) {
+                const resolvedTeams = gTeams
+                  .map((gt: any) => {
+                    const found = teams.find((t) => String(t.id) === String(gt.id) || t.name === gt.name);
+                    return found || gt;
+                  })
+                  .filter(Boolean) as Team[];
+                groups[gName] = resolvedTeams;
+              } else {
+                groups[gName] = [];
+              }
+            });
+          } else if (groupsData.length > 0) {
+            groupsData.forEach((g: any) => {
+              const teamRows = groupTeamsData.filter((gt: any) => gt.group_id === g.id);
+              const teamsInGroup = teamRows
+                .map((gt: any) => teams.find((t) => String(t.id) === String(gt.team_id) || t.name === gt.team_name))
+                .filter(Boolean) as Team[];
+              groups[g.name] = teamsInGroup;
+            });
           }
 
           // Restore team logos from backup if logo was empty in relational query
