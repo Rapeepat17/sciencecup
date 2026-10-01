@@ -244,8 +244,8 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
             matchesData.forEach((m: any) => {
               const homeName = m.home_team_name || teams.find((t) => String(t.id) === String(m.home_team_id))?.name || '-';
               const awayName = m.away_team_name || teams.find((t) => String(t.id) === String(m.away_team_id))?.name || '-';
-              const homeLogo = m.home_team_logo || teams.find((t) => String(t.id) === String(m.home_team_id))?.logo || '';
-              const awayLogo = m.away_team_logo || teams.find((t) => String(t.id) === String(m.away_team_id))?.logo || '';
+              const homeLogo = (m.home_team_logo && m.home_team_logo.trim() !== '') ? m.home_team_logo : (teams.find((t) => String(t.id) === String(m.home_team_id) || t.name === homeName)?.logo || getPersistedLogo(m.home_team_id, homeName));
+              const awayLogo = (m.away_team_logo && m.away_team_logo.trim() !== '') ? m.away_team_logo : (teams.find((t) => String(t.id) === String(m.away_team_id) || t.name === awayName)?.logo || getPersistedLogo(m.away_team_id, awayName));
 
               const md = matchDetails[m.id] || {};
 
@@ -427,7 +427,7 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
         name: t.name,
         nameEn: t.nameEn || t.name,
         shortName: t.shortName,
-        logo: (t.logo && t.logo.length > 250000) ? '' : (t.logo || ''),
+        logo: (t.logo && t.logo.length > 25000) ? '' : (t.logo || ''),
       });
 
       const cleanGroupsForBackup: Record<string, any[]> = {};
@@ -613,8 +613,8 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
             away_team_id: isAwayTeamReal ? String(m.team2.id) : null,
             home_team_name: m.team1?.name || null,
             away_team_name: m.team2?.name || null,
-            home_team_logo: m.team1?.logo || null,
-            away_team_logo: m.team2?.logo || null,
+            home_team_logo: (m.team1?.logo && m.team1.logo.length > 25000) ? '' : (m.team1?.logo || null),
+            away_team_logo: (m.team2?.logo && m.team2.logo.length > 25000) ? '' : (m.team2?.logo || null),
             home_score: typeof m.score1 === 'number' ? m.score1 : 0,
             away_score: typeof m.score2 === 'number' ? m.score2 : 0,
             penalty_home_score: m.penaltyScore1 ?? null,

@@ -16,6 +16,7 @@ import {
   INITIAL_FINAL_MATCH,
 } from './data/bracketData';
 import { fetchDatabase, saveDatabase, resetDatabase as resetDbService, loadDatabaseSync, LOCAL_STORAGE_KEY } from './services/dbService';
+import { supabase } from './services/supabaseClient';
 import { generateInterleavedRoundRobinMatches } from './utils/fixtureGenerator';
 import { calculateGroupStandings, resolveSeedFromStandings, isSeedPlaceholder } from './utils/standingsCalculator';
 import { Header } from './components/Header';
@@ -250,16 +251,62 @@ export default function App() {
 
     fetchInitial();
 
+    // 1. Supabase Realtime WebSocket Channel Subscription (Instant score updates without heavy polling)
+    let realtimeChannel: any = null;
+    if (supabase) {
+      try {
+        realtimeChannel = supabase
+          .channel('scicup_realtime_sync')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'tournaments' },
+            async () => {
+              if (Date.now() - lastLocalEditTimeRef.current < 4000) return;
+              const fresh = await fetchDatabase();
+              if (fresh && isMounted) applyDatabaseData(fresh);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'matches' },
+            async () => {
+              if (Date.now() - lastLocalEditTimeRef.current < 4000) return;
+              const fresh = await fetchDatabase();
+              if (fresh && isMounted) applyDatabaseData(fresh);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'teams' },
+            async () => {
+              if (Date.now() - lastLocalEditTimeRef.current < 4000) return;
+              const fresh = await fetchDatabase();
+              if (fresh && isMounted) applyDatabaseData(fresh);
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'groups' },
+            async () => {
+              if (Date.now() - lastLocalEditTimeRef.current < 4000) return;
+              const fresh = await fetchDatabase();
+              if (fresh && isMounted) applyDatabaseData(fresh);
+            }
+          )
+          .subscribe();
+      } catch (err) {}
+    }
+
+    // 2. Safety Heartbeat Polling: 45-second interval (Backup heartbeat to drastically reduce Egress bandwidth)
     const interval = setInterval(async () => {
       try {
-        // Skip polling if user edited locally recently
-        if (Date.now() - lastLocalEditTimeRef.current < 5000) return;
+        if (Date.now() - lastLocalEditTimeRef.current < 10000) return;
         const fresh = await fetchDatabase();
         if (fresh && isMounted) {
           applyDatabaseData(fresh);
         }
       } catch (err) {}
-    }, 8000);
+    }, 45000);
 
     const handleStorage = (e: StorageEvent) => {
       if ((e.key === LOCAL_STORAGE_KEY || e.key === 'scicup_database_v3') && e.newValue) {
@@ -274,6 +321,9 @@ export default function App() {
     return () => {
       isMounted = false;
       clearInterval(interval);
+      if (realtimeChannel && supabase) {
+        supabase.removeChannel(realtimeChannel);
+      }
       window.removeEventListener('storage', handleStorage);
     };
   }, [applyDatabaseData]);
