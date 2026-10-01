@@ -92,7 +92,7 @@ export interface TopScorer {
   name: string;
   initials: string;
   number: number;
-  position: string;
+  position?: string;
   teamName: string;
   group: string;
   matchesPlayed: number;

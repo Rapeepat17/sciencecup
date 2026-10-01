@@ -50,13 +50,11 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
   const [targetTeamIdForAdd, setTargetTeamIdForAdd] = useState<string | number>('');
   const [newPlayerName, setNewPlayerName] = useState('');
   const [newPlayerNumber, setNewPlayerNumber] = useState('');
-  const [newPlayerPos, setNewPlayerPos] = useState('กองหน้า');
 
   // Edit Player State
   const [editingPlayer, setEditingPlayer] = useState<{ teamId: string | number; player: Player } | null>(null);
   const [editPlayerName, setEditPlayerName] = useState('');
   const [editPlayerNumber, setEditPlayerNumber] = useState('');
-  const [editPlayerPos, setEditPlayerPos] = useState('กองหน้า');
 
   // Edit Team State (inside modal)
   const [editName, setEditName] = useState('');
@@ -82,7 +80,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
     setEditLogo(team.logo || '');
     setNewPlayerName('');
     setNewPlayerNumber('');
-    setNewPlayerPos('กองหน้า');
     setSavedSuccess(false);
   };
 
@@ -113,8 +110,8 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
       city: newTeamCity.trim() || 'กรุงเทพฯ',
       manager: newTeamManager.trim() || 'หัวหน้าผู้ฝึกสอน',
       players: [
-        { id: `p-${Date.now()}-1`, name: 'กัปตันทีม', number: 10, position: 'กองหน้า' },
-        { id: `p-${Date.now()}-2`, name: 'ผู้รักษาประตูหลัก', number: 1, position: 'ผู้รักษาประตู' },
+        { id: `p-${Date.now()}-1`, name: 'กัปตันทีม', number: 10 },
+        { id: `p-${Date.now()}-2`, name: 'ผู้รักษาประตูหลัก', number: 1 },
       ],
     };
 
@@ -189,7 +186,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
   };
 
   // Add Player to specific team
-  const handleAddPlayerToTeam = (teamId: string | number, name: string, numberStr: string, pos: string) => {
+  const handleAddPlayerToTeam = (teamId: string | number, name: string, numberStr: string) => {
     if (!name.trim()) return;
     const targetTeam = teams.find((t) => String(t.id) === String(teamId));
     if (!targetTeam) return;
@@ -198,7 +195,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
       id: `p-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
       name: name.trim(),
       number: numberStr.trim() ? numberStr.trim() : (targetTeam.players?.length || 0) + 1,
-      position: pos || 'กองหน้า',
     };
 
     const updatedPlayers = [...(targetTeam.players || []), newPlayer];
@@ -229,7 +225,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
     setEditingPlayer({ teamId, player });
     setEditPlayerName(player.name);
     setEditPlayerNumber(String(player.number));
-    setEditPlayerPos(player.position || 'กองหน้า');
   };
 
   // Save edited player
@@ -247,7 +242,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
             ...p,
             name: editPlayerName.trim() || p.name,
             number: editPlayerNumber.trim() ? editPlayerNumber.trim() : p.number,
-            position: editPlayerPos,
           }
         : p
     );
@@ -318,9 +312,8 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
       const q = search.toLowerCase();
       const pName = player.name.toLowerCase();
       const pNum = String(player.number).toLowerCase();
-      const pPos = (player.position || '').toLowerCase();
       const tName = team.name.toLowerCase();
-      if (!pName.includes(q) && !pNum.includes(q) && !pPos.includes(q) && !tName.includes(q)) {
+      if (!pName.includes(q) && !pNum.includes(q) && !tName.includes(q)) {
         return false;
       }
     }
@@ -570,7 +563,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                     setTargetTeamIdForAdd(teams[0].id);
                     setNewPlayerName('');
                     setNewPlayerNumber('');
-                    setNewPlayerPos('กองหน้า');
                     setShowAddPlayerModal(true);
                   }}
                   className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#ffe680] text-[#786607] font-bold text-xs hover:bg-[#fbe27c] transition-all cursor-pointer shadow-2xs"
@@ -589,7 +581,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                 <tr className="bg-[#f5f3f3] text-[#4b4737] uppercase font-bold text-[11px] border-b border-[#efeded]">
                   <th className="py-3 px-4 text-center w-16">เบอร์เสื้อ #</th>
                   <th className="py-3 px-4">ชื่อ - นามสกุล นักเตะ</th>
-                  <th className="py-3 px-4">ตำแหน่ง</th>
                   <th className="py-3 px-4">สโมสร / ทีมสังกัด</th>
                   <th className="py-3 px-4 text-center w-28">จัดการ</th>
                 </tr>
@@ -597,7 +588,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
               <tbody className="divide-y divide-[#efeded]">
                 {filteredAllPlayers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-[#4b4737]">
+                    <td colSpan={4} className="py-8 text-center text-[#4b4737]">
                       <Shirt className="w-8 h-8 text-[#4b4737] mx-auto mb-2 opacity-30" />
                       <p className="font-bold text-xs text-[#1b1c1c]">ไม่พบข้อมูลนักเตะในตาราง</p>
                       <p className="text-[11px] text-[#4b4737] mt-0.5">
@@ -619,23 +610,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                       <td className="py-3 px-4">
                         <span className="font-bold text-[#1b1c1c] block text-xs">
                           {player.name}
-                        </span>
-                      </td>
-
-                      {/* Position Badge */}
-                      <td className="py-3 px-4">
-                        <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            player.position === 'กองหน้า'
-                              ? 'bg-rose-100 text-rose-700'
-                              : player.position === 'กองกลาง'
-                              ? 'bg-amber-100 text-amber-800'
-                              : player.position === 'ผู้รักษาประตู'
-                              ? 'bg-purple-100 text-purple-800'
-                              : 'bg-emerald-100 text-emerald-800'
-                          }`}
-                        >
-                          {player.position || 'ผู้เล่น'}
                         </span>
                       </td>
 
@@ -748,7 +722,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
-                      handleAddPlayerToTeam(selectedTeam.id, newPlayerName, newPlayerNumber, newPlayerPos);
+                      handleAddPlayerToTeam(selectedTeam.id, newPlayerName, newPlayerNumber);
                       setNewPlayerName('');
                       setNewPlayerNumber('');
                     }}
@@ -760,7 +734,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                     </h4>
 
                     <div className="grid grid-cols-12 gap-2">
-                      <div className="col-span-3">
+                      <div className="col-span-4">
                         <label className="block text-[11px] font-bold text-[#4b4737] mb-1">
                           เบอร์เสื้อ #
                         </label>
@@ -774,7 +748,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                         />
                       </div>
 
-                      <div className="col-span-5">
+                      <div className="col-span-8">
                         <label className="block text-[11px] font-bold text-[#4b4737] mb-1">
                           ชื่อ - นามสกุล นักเตะ
                         </label>
@@ -786,22 +760,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                           onChange={(e) => setNewPlayerName(e.target.value)}
                           className="w-full px-3 py-2 rounded-xl bg-white border border-[#efeded] text-xs text-[#1b1c1c] font-semibold focus:outline-none focus:ring-2 focus:ring-[#ffe680]"
                         />
-                      </div>
-
-                      <div className="col-span-4">
-                        <label className="block text-[11px] font-bold text-[#4b4737] mb-1">
-                          ตำแหน่ง
-                        </label>
-                        <select
-                          value={newPlayerPos}
-                          onChange={(e) => setNewPlayerPos(e.target.value)}
-                          className="w-full px-2 py-2 rounded-xl bg-white border border-[#efeded] text-xs text-[#1b1c1c] font-semibold focus:outline-none focus:ring-2 focus:ring-[#ffe680]"
-                        >
-                          <option value="กองหน้า">กองหน้า (FW)</option>
-                          <option value="กองกลาง">กองกลาง (MF)</option>
-                          <option value="กองหลัง">กองหลัง (DF)</option>
-                          <option value="ผู้รักษาประตู">ผู้รักษาประตู (GK)</option>
-                        </select>
                       </div>
                     </div>
 
@@ -833,9 +791,8 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                         <table className="w-full text-left text-xs whitespace-nowrap">
                           <thead>
                             <tr className="bg-[#f5f3f3] text-[#4b4737] uppercase font-bold text-[10px]">
-                              <th className="py-2 px-3 text-center w-12">เบอร์ #</th>
+                              <th className="py-2 px-3 text-center w-14">เบอร์ #</th>
                               <th className="py-2 px-3">ชื่อ - นามสกุล นักเตะ</th>
-                              <th className="py-2 px-3">ตำแหน่ง</th>
                               <th className="py-2 px-3 text-center w-20">จัดการ</th>
                             </tr>
                           </thead>
@@ -848,7 +805,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                                   </span>
                                 </td>
                                 <td className="py-2 px-3 font-bold text-[#1b1c1c]">{p.name}</td>
-                                <td className="py-2 px-3 text-[#4b4737]">{p.position || 'ผู้เล่น'}</td>
                                 <td className="py-2 px-3 text-center">
                                   <div className="flex items-center justify-center gap-1">
                                     <button
@@ -1061,20 +1017,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#1b1c1c] mb-1">ตำแหน่ง</label>
-                <select
-                  value={editPlayerPos}
-                  onChange={(e) => setEditPlayerPos(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#f5f3f3] text-xs text-[#1b1c1c] font-semibold border border-[#efeded]"
-                >
-                  <option value="กองหน้า">กองหน้า (FW)</option>
-                  <option value="กองกลาง">กองกลาง (MF)</option>
-                  <option value="กองหลัง">กองหลัง (DF)</option>
-                  <option value="ผู้รักษาประตู">ผู้รักษาประตู (GK)</option>
-                </select>
-              </div>
-
               <div className="pt-3 border-t border-[#efeded] flex justify-end gap-2">
                 <button
                   type="button"
@@ -1115,7 +1057,7 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                handleAddPlayerToTeam(targetTeamIdForAdd, newPlayerName, newPlayerNumber, newPlayerPos);
+                handleAddPlayerToTeam(targetTeamIdForAdd, newPlayerName, newPlayerNumber);
                 setShowAddPlayerModal(false);
               }}
               className="space-y-3"
@@ -1157,20 +1099,6 @@ export const TeamsView: React.FC<TeamsViewProps> = ({ teams, setTeams, setGroups
                   onChange={(e) => setNewPlayerName(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-[#f5f3f3] text-xs text-[#1b1c1c] font-semibold border border-[#efeded]"
                 />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#1b1c1c] mb-1">ตำแหน่ง</label>
-                <select
-                  value={newPlayerPos}
-                  onChange={(e) => setNewPlayerPos(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-[#f5f3f3] text-xs text-[#1b1c1c] font-semibold border border-[#efeded]"
-                >
-                  <option value="กองหน้า">กองหน้า (FW)</option>
-                  <option value="กองกลาง">กองกลาง (MF)</option>
-                  <option value="กองหลัง">กองหลัง (DF)</option>
-                  <option value="ผู้รักษาประตู">ผู้รักษาประตู (GK)</option>
-                </select>
               </div>
 
               <div className="pt-3 border-t border-[#efeded] flex justify-end gap-2">

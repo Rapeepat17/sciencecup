@@ -143,7 +143,6 @@ export async function fetchDatabase(): Promise<TournamentDatabaseData> {
               id: String(p.id),
               name: p.name,
               number: p.number,
-              position: p.position,
             });
           });
 
@@ -506,7 +505,6 @@ export async function saveDatabase(data: TournamentDatabaseData): Promise<boolea
                   team_id: String(t.id),
                   name: p.name,
                   number: String(p.number || ''),
-                  position: p.position || 'กองหน้า',
                 });
               });
             }

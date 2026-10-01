@@ -477,7 +477,7 @@ export const StandingsView: React.FC<StandingsViewProps> = ({
                             {scorer.name}
                           </span>
                           <span className="text-[11px] text-[#4b4737]">
-                            เบอร์ {scorer.number} • {scorer.position}
+                            เบอร์ {scorer.number}
                           </span>
                         </div>
                       </div>

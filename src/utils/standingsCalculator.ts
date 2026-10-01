@@ -247,15 +247,12 @@ export function calculateTopScorers(matches: Match[], teamsList?: Team[]): TopSc
       : item.nameOverride
       ? item.nameOverride.slice(0, 2).toUpperCase()
       : `#${item.playerNumber}`;
-    const position = matchedPlayer?.position || 'ผู้เล่น';
-
     return {
       id: `${item.teamId}_${item.playerNumber}`,
       rank: 0,
       name: playerName,
       initials,
       number: item.playerNumber,
-      position,
       teamName: item.teamName,
       group: item.group,
       matchesPlayed: item.matchesSet.size,
