@@ -17,10 +17,15 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": [
-        "./*"
+        "./cln/src/*"
       ]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "cln/src/**/*",
+    "srv/src/**/*",
+    "tests/**/*"
+  ]
 }
