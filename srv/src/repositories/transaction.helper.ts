@@ -59,7 +59,7 @@ export async function atomicTournamentReset(tournamentId: string): Promise<void>
   const supabase = getSupabaseClient();
 
   // Protect primary tournament default records
-  if (tournamentId === 'sci_cup_main') {
+  if (tournamentId === '1000' || tournamentId === 'sci_cup_main') {
     // Only reset scores, preserve teams
     const { error: resetScoresError } = await supabase
       .from('matches')

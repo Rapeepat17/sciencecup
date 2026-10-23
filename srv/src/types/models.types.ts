@@ -3,7 +3,8 @@ export type TournamentStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED' | 'COMPLETED';
 export interface Tournament {
   id: string;
   name: string;
-  status: TournamentStatus;
+  status?: string;
+  logo?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   description?: string | null;
@@ -19,7 +20,9 @@ export interface Tournament {
 export interface Team {
   id: string;
   name: string;
-  group_name: string;
+  short_name?: string | null;
+  manager?: string | null;
+  group_name?: string | null;
   logo?: string | null;
   logo_path?: string | null;
   tournament_id: string;

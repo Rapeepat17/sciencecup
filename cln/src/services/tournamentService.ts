@@ -2,9 +2,10 @@ import { apiClient } from './apiClient';
 import { TournamentItem } from '../types';
 
 export interface CreateTournamentDto {
-  id: string;
+  id?: string;
   name: string;
   description?: string;
+  logo?: string;
   start_date?: string;
   end_date?: string;
   knockout_starting_round?: 'r16' | 'qf' | 'sf' | 'final';

@@ -14,7 +14,7 @@ export class MatchService {
     }
     try {
       const matches = await matchRepository.findByTournament(tournamentId, stage);
-      if (matches && matches.length > 0) return matches;
+      return matches;
     } catch (err: any) {
       if (err.code !== '42703' && !err.message?.includes('tournament_id')) {
         throw err;
@@ -90,16 +90,18 @@ export class MatchService {
       );
     }
 
-    const matchId = payload.id || `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
-    return matchRepository.create({
+    const createData: any = {
       ...payload,
-      id: matchId,
       tournament_id: tournamentId,
       status: 'SCHEDULED',
       home_score: null,
       away_score: null,
-    });
+    };
+    if (payload.id?.trim()) {
+      createData.id = payload.id.trim();
+    }
+
+    return matchRepository.create(createData);
   }
 
   async updateMatchScore(

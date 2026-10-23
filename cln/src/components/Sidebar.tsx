@@ -149,9 +149,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               </div>
               <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
-                <span className="text-xs text-gray-900 font-bold truncate">
-                  {tournamentName}
+                <span
+                  className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                    tournamentName && tournamentName.trim()
+                      ? 'bg-emerald-500 animate-pulse'
+                      : 'bg-gray-300'
+                  }`}
+                />
+                <span
+                  className={`text-xs font-bold truncate ${
+                    tournamentName && tournamentName.trim()
+                      ? 'text-gray-900'
+                      : 'text-gray-400 italic'
+                  }`}
+                >
+                  {tournamentName && tournamentName.trim()
+                    ? tournamentName
+                    : 'ไม่มีทัวร์นาเมนต์'}
                 </span>
               </div>
             </div>

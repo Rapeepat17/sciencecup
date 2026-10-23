@@ -30,7 +30,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS public.tournaments (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    status TEXT DEFAULT 'ACTIVE',
+    logo TEXT,
     start_date TEXT,
     end_date TEXT,
     description TEXT,
@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS public.tournaments (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'ACTIVE';
+ALTER TABLE public.tournaments DROP COLUMN IF EXISTS status;
+ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS logo TEXT;
 ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS start_date TEXT;
 ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS end_date TEXT;
 ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS description TEXT;
@@ -51,8 +52,8 @@ ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ D
 ALTER TABLE public.tournaments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- บันทึกทัวร์นาเมนต์หลัก sci_cup_main
-INSERT INTO public.tournaments (id, name, status, knockout_starting_round, is_bracket_locked, is_knockout_created, is_user_portal_enabled)
-VALUES ('sci_cup_main', 'SCI CUP 2026', 'ACTIVE', 'sf', FALSE, FALSE, TRUE)
+INSERT INTO public.tournaments (id, name, knockout_starting_round, is_bracket_locked, is_knockout_created, is_user_portal_enabled)
+VALUES ('sci_cup_main', 'SCI CUP 2026', 'sf', FALSE, FALSE, TRUE)
 ON CONFLICT (id) DO UPDATE 
 SET name = COALESCE(public.tournaments.name, 'SCI CUP 2026');
 

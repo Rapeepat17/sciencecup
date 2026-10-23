@@ -11,7 +11,7 @@ export interface UserNavbarProps {
 
 export const UserNavbar: React.FC<UserNavbarProps> = ({
   title = 'SCIENCE CUP 2026',
-  subtitle = 'การแข่งขันฟุตบอลภายในคณะวิทยาศาสตร์',
+  subtitle,
   isLive = true,
   logoUrl = '/science_cup_logo.png',
   onAdminClick,
@@ -40,9 +40,11 @@ export const UserNavbar: React.FC<UserNavbarProps> = ({
               </span>
             )}
           </div>
-          <p className="text-[11px] text-[#4b4737] truncate mt-0.5">
-            {subtitle}
-          </p>
+          {subtitle && (
+            <p className="text-[11px] text-[#4b4737] truncate mt-0.5">
+              {subtitle}
+            </p>
+          )}
         </div>
       </div>
 

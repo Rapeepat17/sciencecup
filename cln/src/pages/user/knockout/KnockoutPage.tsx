@@ -9,23 +9,42 @@ import { fetchDatabase } from '../../../services/dbService';
 import { BracketMatchup } from '../../../types';
 
 export interface KnockoutPageProps {
+  tournamentId?: string;
+  qfMatches?: BracketMatchup[];
+  sfMatches?: BracketMatchup[];
+  finalMatch?: BracketMatchup | null;
   onMatchClick?: (matchId: string) => void;
 }
 
-export const KnockoutPage: React.FC<KnockoutPageProps> = ({ onMatchClick }) => {
+export const KnockoutPage: React.FC<KnockoutPageProps> = ({
+  tournamentId,
+  qfMatches: initialQf,
+  sfMatches: initialSf,
+  finalMatch: initialFinal,
+  onMatchClick,
+}) => {
   const [selectedRound, setSelectedRound] = useState<KnockoutFilterRound>('all');
-  const [qfMatches, setQfMatches] = useState<BracketMatchup[]>([]);
-  const [sfMatches, setSfMatches] = useState<BracketMatchup[]>([]);
-  const [finalMatch, setFinalMatch] = useState<BracketMatchup | null>(null);
+  const [qfMatches, setQfMatches] = useState<BracketMatchup[]>(initialQf ?? []);
+  const [sfMatches, setSfMatches] = useState<BracketMatchup[]>(initialSf ?? []);
+  const [finalMatch, setFinalMatch] = useState<BracketMatchup | null>(initialFinal ?? null);
 
+  // Sync state when props update
   useEffect(() => {
+    if (initialQf !== undefined) setQfMatches(initialQf);
+    if (initialSf !== undefined) setSfMatches(initialSf);
+    if (initialFinal !== undefined) setFinalMatch(initialFinal);
+  }, [initialQf, initialSf, initialFinal]);
+
+  // Load bracket from database if not provided via props
+  useEffect(() => {
+    if (initialQf !== undefined || initialSf !== undefined || initialFinal !== undefined) return;
     let isMounted = true;
     const loadBracket = async () => {
       try {
-        const data = await fetchDatabase();
+        const data = await fetchDatabase(tournamentId);
         if (isMounted && data) {
-          if (data.qfMatches && data.qfMatches.length > 0) setQfMatches(data.qfMatches);
-          if (data.sfMatches && data.sfMatches.length > 0) setSfMatches(data.sfMatches);
+          if (data.qfMatches) setQfMatches(data.qfMatches);
+          if (data.sfMatches) setSfMatches(data.sfMatches);
           if (data.finalMatch) setFinalMatch(data.finalMatch);
         }
       } catch (err) {
@@ -37,7 +56,7 @@ export const KnockoutPage: React.FC<KnockoutPageProps> = ({ onMatchClick }) => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [tournamentId, initialQf, initialSf, initialFinal]);
 
   return (
     <div className="space-y-6">

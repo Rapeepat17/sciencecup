@@ -53,13 +53,15 @@ export class PlayerService {
       );
     }
 
-    const playerId = payload.id || `p_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
-    return playerRepository.create({
+    const createData: any = {
       ...payload,
-      id: playerId,
       tournament_id: tournamentId,
-    });
+    };
+    if (payload.id?.trim()) {
+      createData.id = payload.id.trim();
+    }
+
+    return playerRepository.create(createData);
   }
 
   async updatePlayer(

@@ -2,6 +2,7 @@ import { teamRepository } from '../repositories/team.repository.ts';
 import { tournamentRepository } from '../repositories/tournament.repository.ts';
 import { Team } from '../types/models.types.ts';
 import { AppError } from '../middleware/errorHandler.ts';
+import { imageService } from './image.service.ts';
 
 export class TeamService {
   async getTeams(tournamentId: string): Promise<Team[]> {
@@ -11,7 +12,7 @@ export class TeamService {
     }
     try {
       const teams = await teamRepository.findByTournament(tournamentId);
-      if (teams && teams.length > 0) return teams;
+      return teams;
     } catch (err: any) {
       if (err.code !== '42703' && !err.message?.includes('tournament_id')) {
         throw err;
@@ -29,7 +30,6 @@ export class TeamService {
           id: String(t.id),
           tournament_id: tournamentId,
           name: t.name,
-          name_en: t.nameEn || t.name,
           short_name: t.shortName || t.name.slice(0, 3).toUpperCase(),
           group_name: groupName,
           logo: t.logo || '',
@@ -54,26 +54,88 @@ export class TeamService {
     return team;
   }
 
-  async createTeam(tournamentId: string, payload: { id: string; name: string; group_name: string; logo?: string | null }): Promise<Team> {
+  async createTeam(
+    tournamentId: string,
+    payload: { id?: string; name: string; short_name?: string | null; manager?: string | null; group_name?: string | null; logo?: string | null }
+  ): Promise<Team> {
     const tournament = await tournamentRepository.findById(tournamentId);
     if (!tournament) {
       throw AppError.notFound(`Tournament "${tournamentId}" does not exist`);
     }
 
-    const existing = await teamRepository.findById(tournamentId, payload.id);
-    if (existing) {
-      throw AppError.conflict(`Team with ID "${payload.id}" already exists in this tournament`);
+    const teamId = payload.id?.trim();
+    if (teamId) {
+      const existing = await teamRepository.findById(tournamentId, teamId);
+      if (existing) {
+        throw AppError.conflict(`Team with ID "${teamId}" already exists in this tournament`);
+      }
     }
 
-    return teamRepository.create({
+    let finalLogo = payload.logo || undefined;
+    let finalLogoPath: string | undefined = undefined;
+
+    if (finalLogo && finalLogo.startsWith('data:image/')) {
+      try {
+        const decoded = imageService.decodeAndValidateBase64(finalLogo);
+        const storagePath = imageService.buildStoragePath(
+          tournamentId,
+          'teams',
+          teamId || 'new_team',
+          decoded.extension
+        );
+        const uploadResult = await imageService.uploadToStorage(
+          storagePath,
+          decoded.buffer,
+          decoded.contentType,
+          finalLogo
+        );
+        finalLogo = uploadResult.url;
+        finalLogoPath = uploadResult.path;
+      } catch (uploadErr) {
+        console.warn('[TeamService] Logo upload failed, using fallback:', uploadErr);
+      }
+    }
+
+    const createData: any = {
       ...payload,
+      logo: finalLogo || null,
+      logo_path: finalLogoPath || null,
       tournament_id: tournamentId,
-    });
+    };
+    if (teamId) {
+      createData.id = teamId;
+    }
+
+    return teamRepository.create(createData);
   }
 
   async updateTeam(tournamentId: string, teamId: string, payload: Partial<Team>): Promise<Team> {
     await this.getTeamById(tournamentId, teamId);
-    return teamRepository.update(tournamentId, teamId, payload);
+    const updateData = { ...payload };
+
+    if (updateData.logo && updateData.logo.startsWith('data:image/')) {
+      try {
+        const decoded = imageService.decodeAndValidateBase64(updateData.logo);
+        const storagePath = imageService.buildStoragePath(
+          tournamentId,
+          'teams',
+          teamId,
+          decoded.extension
+        );
+        const uploadResult = await imageService.uploadToStorage(
+          storagePath,
+          decoded.buffer,
+          decoded.contentType,
+          updateData.logo
+        );
+        updateData.logo = uploadResult.url;
+        updateData.logo_path = uploadResult.path;
+      } catch (uploadErr) {
+        console.warn('[TeamService] Logo update upload failed, using fallback:', uploadErr);
+      }
+    }
+
+    return teamRepository.update(tournamentId, teamId, updateData);
   }
 
   async deleteTeam(tournamentId: string, teamId: string): Promise<void> {

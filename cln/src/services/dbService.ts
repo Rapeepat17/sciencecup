@@ -20,7 +20,7 @@ import { teamService } from './teamService';
 import { matchService } from './matchService';
 import { apiClient } from './apiClient';
 
-export const DEFAULT_TOURNAMENT_ID = 'sci_cup_main';
+export const DEFAULT_TOURNAMENT_ID = '1000';
 export const LOCAL_STORAGE_KEY = 'scicup_database_v4';
 export const TOURNAMENTS_INDEX_KEY = 'scicup_tournaments_index_v1';
 
@@ -32,8 +32,8 @@ export function getLocalStorageKey(tournamentId: string = DEFAULT_TOURNAMENT_ID)
 }
 
 export const DEFAULT_DATABASE_DATA: TournamentDatabaseData = {
-  id: DEFAULT_TOURNAMENT_ID,
-  tournamentName: 'SCI CUP 2026',
+  id: '',
+  tournamentName: '',
   status: 'ACTIVE',
   teams: [],
   groups: {},
@@ -89,16 +89,7 @@ export function loadTournamentsListSync(): TournamentItem[] {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch {}
-  return [
-    {
-      id: DEFAULT_TOURNAMENT_ID,
-      name: 'SCI CUP 2026',
-      status: 'ACTIVE',
-      startDate: '2026-10-30',
-      description: 'การแข่งขันฟุตบอลวิทยาศาสตร์คัพ ประจำปี 2026',
-      isUserPortalEnabled: true,
-    },
-  ];
+  return [];
 }
 
 export function loadDatabaseSync(tournamentId: string = DEFAULT_TOURNAMENT_ID): TournamentDatabaseData {
@@ -118,16 +109,26 @@ export function loadDatabaseSync(tournamentId: string = DEFAULT_TOURNAMENT_ID): 
 export async function fetchTournamentsList(): Promise<TournamentItem[]> {
   try {
     const list = await tournamentService.getAll();
-    if (Array.isArray(list) && list.length > 0) {
-      try {
-        localStorage.setItem(TOURNAMENTS_INDEX_KEY, JSON.stringify(list));
-      } catch {}
-      return list;
+    if (Array.isArray(list)) {
+      return list.map((t: any) => ({
+        id: t.id,
+        name: t.name || '',
+        logo: t.logo || '',
+        startDate: t.startDate || t.start_date || '',
+        endDate: t.endDate || t.end_date || '',
+        description: t.description || '',
+        knockoutStartingRound: t.knockoutStartingRound || t.knockout_starting_round || 'sf',
+        isUserPortalEnabled: t.isUserPortalEnabled ?? t.is_user_portal_enabled ?? true,
+        isBracketLocked: Boolean(t.isBracketLocked ?? t.is_bracket_locked),
+        isKnockoutCreated: Boolean(t.isKnockoutCreated ?? t.is_knockout_created),
+        createdAt: t.createdAt || t.created_at || Date.now(),
+        updatedAt: t.updatedAt || t.updated_at || Date.now(),
+      }));
     }
   } catch (err) {
-    console.warn('[dbService] Backend tournaments list fetch failed, using local offline cache:', err);
+    console.warn('[dbService] Backend tournaments list fetch failed:', err);
   }
-  return loadTournamentsListSync();
+  return [];
 }
 
 /**
@@ -137,50 +138,40 @@ export async function createTournament(meta: {
   id?: string;
   name: string;
   status?: TournamentStatus;
+  logo?: string;
   startDate?: string;
   endDate?: string;
   description?: string;
 }): Promise<TournamentItem> {
-  const newId =
-    meta.id ||
-    `tourney_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`.toLowerCase();
+  // Call Backend API directly - Only Backend saves to database, no frontend local storage saving
+  const res = await tournamentService.create({
+    id: meta.id || undefined,
+    name: meta.name.trim() || 'รายการแข่งขันใหม่',
+    description: meta.description || '',
+    logo: meta.logo || undefined,
+    start_date: meta.startDate || undefined,
+    end_date: meta.endDate || undefined,
+    knockout_starting_round: 'sf',
+    is_user_portal_enabled: true,
+  });
+
+  const createdData = res?.data || res;
 
   const newItem: TournamentItem = {
-    id: newId,
-    name: meta.name.trim() || 'รายการแข่งขันใหม่',
-    status: meta.status || 'ACTIVE',
-    startDate: meta.startDate || '',
-    endDate: meta.endDate || '',
-    description: meta.description || '',
+    id: createdData.id || meta.id || '',
+    name: createdData.name || meta.name.trim(),
+    status: createdData.status || meta.status || 'ACTIVE',
+    logo: createdData.logo || meta.logo || '',
+    startDate: createdData.start_date || meta.startDate || '',
+    endDate: createdData.end_date || meta.endDate || '',
+    description: createdData.description || meta.description || '',
     teamsCount: 0,
     matchesCount: 0,
-    knockoutStartingRound: 'sf',
+    knockoutStartingRound: createdData.knockout_starting_round || 'sf',
     isUserPortalEnabled: true,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: createdData.created_at || Date.now(),
+    updatedAt: createdData.updated_at || Date.now(),
   };
-
-  // 1. Call Backend API
-  try {
-    await tournamentService.create({
-      id: newId,
-      name: newItem.name,
-      description: newItem.description,
-      start_date: newItem.startDate,
-      end_date: newItem.endDate,
-      knockout_starting_round: 'sf',
-      is_user_portal_enabled: true,
-    });
-  } catch (err) {
-    console.warn('[dbService] Backend createTournament failed, saving locally:', err);
-  }
-
-  // 2. Retain local cache for offline resilience
-  try {
-    const cachedList = await fetchTournamentsList();
-    const updatedList = [newItem, ...cachedList.filter((t) => t.id !== newId)];
-    localStorage.setItem(TOURNAMENTS_INDEX_KEY, JSON.stringify(updatedList));
-  } catch {}
 
   return newItem;
 }
@@ -196,23 +187,17 @@ export async function updateTournamentMeta(
     await tournamentService.update(tournamentId, {
       name: meta.name,
       description: meta.description,
+      logo: meta.logo,
       start_date: meta.startDate,
       end_date: meta.endDate,
-      status: meta.status,
+      knockout_starting_round: meta.knockoutStartingRound,
       is_user_portal_enabled: meta.isUserPortalEnabled,
     });
+    return true;
   } catch (err) {
-    console.warn('[dbService] Backend updateTournamentMeta failed:', err);
+    console.error('[dbService] Backend updateTournamentMeta failed:', err);
+    return false;
   }
-
-  // Update local index cache
-  try {
-    const list = await fetchTournamentsList();
-    const updated = list.map((t) => (t.id === tournamentId ? { ...t, ...meta, updatedAt: Date.now() } : t));
-    localStorage.setItem(TOURNAMENTS_INDEX_KEY, JSON.stringify(updated));
-  } catch {}
-
-  return true;
 }
 
 /**
@@ -225,17 +210,11 @@ export async function deleteTournament(tournamentId: string): Promise<boolean> {
 
   try {
     await tournamentService.delete(tournamentId);
+    return true;
   } catch (err) {
-    console.warn('[dbService] Backend deleteTournament failed:', err);
+    console.error('[dbService] Backend deleteTournament failed:', err);
+    return false;
   }
-
-  try {
-    const list = await fetchTournamentsList();
-    const updated = list.filter((t) => t.id !== tournamentId);
-    localStorage.setItem(TOURNAMENTS_INDEX_KEY, JSON.stringify(updated));
-  } catch {}
-
-  return true;
 }
 
 /**
@@ -258,7 +237,7 @@ export async function fetchDatabase(
       const teams = (teamsRes || []).map((t: any) => ({
         id: String(t.id),
         name: t.name,
-        nameEn: t.name_en || t.name,
+        nameEn: t.name,
         shortName: t.short_name || t.name.slice(0, 3).toUpperCase(),
         group: t.group_name || 'Group A',
         logo: t.logo || getPersistedLogo(t.id, t.name) || '',
@@ -313,7 +292,7 @@ export async function fetchDatabase(
 
       const formatted: TournamentDatabaseData = {
         id: tournamentId,
-        tournamentName: tourneyRes.name || 'SCI CUP 2026',
+        tournamentName: tourneyRes.name || '',
         status: tourneyRes.status || 'ACTIVE',
         startDate: tourneyRes.start_date || '',
         endDate: tourneyRes.end_date || '',
@@ -332,24 +311,16 @@ export async function fetchDatabase(
         updatedAt: Date.now(),
       };
 
-      // Cache locally for offline backup without destroying existing data
-      try {
-        localStorage.setItem(getLocalStorageKey(tournamentId), JSON.stringify(formatted));
-      } catch {}
-
       return formatted;
     }
   } catch (err: any) {
     if (signal?.aborted || err?.name === 'AbortError') {
       return loadDatabaseSync(tournamentId);
     }
-    console.warn(`[dbService] Backend fetch failed for "${tournamentId}", attempting legacy/offline fallback:`, err);
+    console.warn(`[dbService] Backend fetch failed for "${tournamentId}":`, err);
   }
 
-  // Fallback to local storage (notifying offline state)
-  const cached = loadDatabaseSync(tournamentId);
-  (cached as any)._isOfflineFallback = true;
-  return cached;
+  return { ...DEFAULT_DATABASE_DATA, id: tournamentId, _isOfflineFallback: true } as any;
 }
 
 /**
@@ -368,16 +339,12 @@ export async function saveDatabase(
     persistAllTeamLogos(data.teams);
   }
 
-  // 1. Save locally for immediate offline responsiveness
-  try {
-    localStorage.setItem(getLocalStorageKey(tournamentId), JSON.stringify(data));
-  } catch {}
-
-  // 2. Call Backend API
+  // Call Backend API directly - Only Backend saves to database, no local storage saving
   try {
     await tournamentService.update(tournamentId, {
       name: data.tournamentName,
       status: data.status,
+      logo: data.logo,
       start_date: data.startDate,
       end_date: data.endDate,
       description: data.description,

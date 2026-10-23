@@ -307,18 +307,16 @@ export const TournamentHubView: React.FC<TournamentHubViewProps> = ({
                     >
                       <Edit3 className="w-4 h-4" />
                     </button>
-                    {t.id !== 'sci_cup_main' && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingTournament(t);
-                        }}
-                        title="ลบรายการนี้"
-                        className="p-2 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeletingTournament(t);
+                      }}
+                      title="ลบรายการนี้"
+                      className="p-2 rounded-xl text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 

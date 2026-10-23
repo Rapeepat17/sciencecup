@@ -17,7 +17,7 @@ export const updateMatchScoreSchema = z.object({
 });
 
 export const createMatchSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).optional(),
   stage: z.enum(['group', 'qf', 'sf', 'final']),
   group_name: z.string().nullable().optional(),
   home_team_id: z.string().min(1),

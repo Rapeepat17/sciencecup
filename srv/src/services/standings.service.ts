@@ -10,8 +10,8 @@ export class StandingsService {
       if (!tableMap[grp]) {
         tableMap[grp] = {};
       }
-      tableMap[grp][team.id] = {
-        teamId: team.id,
+      tableMap[grp][String(team.id)] = {
+        teamId: String(team.id),
         teamName: team.name,
         groupName: grp,
         played: 0,
@@ -34,8 +34,8 @@ export class StandingsService {
       const grp = match.group_name;
       if (!grp || !tableMap[grp]) continue;
 
-      const home = tableMap[grp][match.home_team_id];
-      const away = tableMap[grp][match.away_team_id];
+      const home = tableMap[grp][String(match.home_team_id)];
+      const away = tableMap[grp][String(match.away_team_id)];
       if (!home || !away) continue;
 
       const hScore = Number(match.home_score);

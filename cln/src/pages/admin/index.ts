@@ -1,0 +1,9 @@
+export { TournamentsPage } from './tournaments/TournamentsPage';
+export { DashboardPage } from './dashboard/DashboardPage';
+export { CreateTournamentPage } from './create-tournament/CreateTournamentPage';
+export { TeamsPage } from './teams/TeamsPage';
+export { GroupsPage } from './groups/GroupsPage';
+export { MatchesPage } from './matches/MatchesPage';
+export { StandingsPage } from './standings/StandingsPage';
+export { BracketPage } from './bracket/BracketPage';
+export { SettingsPage } from './settings/SettingsPage';

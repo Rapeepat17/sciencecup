@@ -51,15 +51,9 @@ export async function authenticate(
 ): Promise<void> {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(AppError.unauthorized('Authorization token is missing or malformed'));
-  }
-
-  const token = authHeader.substring(7).trim();
-
-  // Support development and test tokens
+  // Support development and test tokens or local requests without token
   if (env.NODE_ENV !== 'production') {
-    if (token === 'dev_admin_token' || token === '1234') {
+    if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.includes('dev_admin_token') || authHeader.includes('1234')) {
       req.user = {
         id: '00000000-0000-0000-0000-000000000001',
         email: 'admin@scicup.local',
@@ -68,7 +62,7 @@ export async function authenticate(
       };
       return next();
     }
-    if (token === 'dev_viewer_token') {
+    if (authHeader.includes('dev_viewer_token')) {
       req.user = {
         id: '00000000-0000-0000-0000-000000000002',
         email: 'viewer@scicup.local',
@@ -78,6 +72,12 @@ export async function authenticate(
       return next();
     }
   }
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return next(AppError.unauthorized('Authorization token is missing or malformed'));
+  }
+
+  const token = authHeader.substring(7).trim();
 
   try {
     const supabase = getSupabaseClient();

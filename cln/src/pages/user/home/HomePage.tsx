@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CalendarDays } from 'lucide-react';
 import {
   FeaturedMatchHero,
   MatchHeaderBar,
@@ -11,46 +12,18 @@ import { Match } from '../../../types';
 import { fetchDatabase } from '../../../services/dbService';
 
 export interface HomePageProps {
+  tournamentId?: string;
+  matches?: Match[];
   onSelectMatch?: (match: Match) => void;
 }
 
-// Fallback matches matching reference screenshot exactly
-const SAMPLE_MATCHES: Match[] = [
-  {
-    id: 'sample-m1',
-    matchday: 1,
-    matchNumber: 1,
-    dateStr: 'วันเสาร์ที่ 17 ตุลาคม 2026',
-    timeStr: '09:00',
-    round: 'รอบแบ่งกลุ่ม (Group Stage)',
-    group: 'Group A',
-    venue: 'สนามหลัก',
-    team1: { id: 't1', name: 'SHABAB', logo: '' },
-    team2: { id: 't2', name: 'Sc NaSAN FC', logo: '' },
-    score1: 0,
-    score2: 0,
-    status: 'UPCOMING',
-  },
-  {
-    id: 'sample-m2',
-    matchday: 1,
-    matchNumber: 2,
-    dateStr: 'วันเสาร์ที่ 17 ตุลาคม 2026',
-    timeStr: '10:15',
-    round: 'รอบแบ่งกลุ่ม (Group Stage)',
-    group: 'Group B',
-    venue: 'สนามหลัก',
-    team1: { id: 't3', name: 'โอเลี้ยง', logo: '' },
-    team2: { id: 't4', name: 'NAMVIDYA', logo: '' },
-    score1: 0,
-    score2: 0,
-    status: 'UPCOMING',
-  },
-];
-
-export const HomePage: React.FC<HomePageProps> = ({ onSelectMatch }) => {
+export const HomePage: React.FC<HomePageProps> = ({
+  tournamentId,
+  matches: initialMatches,
+  onSelectMatch,
+}) => {
   const [viewMode, setViewMode] = useState<ViewMode>('card');
-  const [matches, setMatches] = useState<Match[]>(SAMPLE_MATCHES);
+  const [matches, setMatches] = useState<Match[]>(initialMatches ?? []);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDetailMatch, setSelectedDetailMatch] = useState<Match | null>(null);
 
@@ -61,18 +34,26 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectMatch }) => {
     }
   };
 
-  // Load matches from database on mount
+  // Sync matches whenever initialMatches prop updates from App.tsx
   useEffect(() => {
+    if (initialMatches !== undefined) {
+      setMatches(initialMatches);
+    }
+  }, [initialMatches]);
+
+  // Load matches from database if not provided via props
+  useEffect(() => {
+    if (initialMatches !== undefined) return;
     let isMounted = true;
     const fetchTournamentData = async () => {
       try {
         setIsLoading(true);
-        const data = await fetchDatabase();
-        if (isMounted && data && Array.isArray(data.matches) && data.matches.length > 0) {
+        const data = await fetchDatabase(tournamentId);
+        if (isMounted && data && Array.isArray(data.matches)) {
           setMatches(data.matches);
         }
       } catch (err) {
-        console.warn('Could not load live matches, using sample matches:', err);
+        console.warn('Could not load live matches:', err);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -82,14 +63,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectMatch }) => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [tournamentId, initialMatches]);
 
   // Find featured match: Prioritize LIVE match, otherwise first upcoming match, otherwise first match
   const featuredMatch =
     matches.find((m) => m.status === 'LIVE') ||
     matches.find((m) => m.status === 'UPCOMING') ||
-    matches[0] ||
-    null;
+    (matches.length > 0 ? matches[0] : null);
 
   return (
     <div className="space-y-6">
@@ -109,8 +89,18 @@ export const HomePage: React.FC<HomePageProps> = ({ onSelectMatch }) => {
           onViewModeChange={setViewMode}
         />
 
-        {/* 3. Match List in Selected View Mode */}
-        {viewMode === 'card' ? (
+        {/* 3. Match List or Empty State */}
+        {matches.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-[#efeded] p-12 text-center shadow-xs">
+            <div className="w-16 h-16 rounded-2xl bg-[#f5f3f3] text-[#7d7765] flex items-center justify-center mx-auto mb-4">
+              <CalendarDays className="w-8 h-8 text-[#786607]" />
+            </div>
+            <h3 className="font-display text-lg font-bold text-[#1b1c1c]">ยังไม่มีโปรแกรมการแข่งขัน</h3>
+            <p className="text-xs text-[#7d7765] mt-1 max-w-sm mx-auto">
+              ทัวร์นาเมนต์นี้ยังไม่มีการจัดตารางแข่งขัน หรืออยู่ระหว่างรอผู้ดูแลระบบประกาศสายการแข่งขัน
+            </p>
+          </div>
+        ) : viewMode === 'card' ? (
           <div className="space-y-3.5">
             {matches.map((match) => (
               <MatchCard

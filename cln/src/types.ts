@@ -3,6 +3,8 @@ export interface Player {
   name: string;
   number: number | string;
   position?: string;
+  team_id?: string;
+  teamId?: string;
 }
 
 export interface Team {
@@ -11,6 +13,7 @@ export interface Team {
   name: string;
   nameEn?: string;
   shortName?: string;
+  short_name?: string;
   logo: string;
   logoPath?: string;
   badgeIcon?: string;
@@ -19,6 +22,8 @@ export interface Team {
   city?: string;
   manager?: string;
   seed?: number;
+  group?: string;
+  group_name?: string;
   players?: Player[];
 }
 
@@ -124,7 +129,8 @@ export type TournamentStatus = 'UPCOMING' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 export interface TournamentItem {
   id: string;
   name: string;
-  status: TournamentStatus;
+  status?: TournamentStatus;
+  logo?: string;
   startDate?: string;
   endDate?: string;
   description?: string;
@@ -142,6 +148,7 @@ export interface TournamentDatabaseData {
   id?: string;
   tournamentName: string;
   status?: TournamentStatus;
+  logo?: string;
   startDate?: string;
   endDate?: string;
   description?: string;
@@ -163,12 +170,18 @@ export interface TournamentDatabaseData {
 export type AppMode = 'admin' | 'user';
 
 export type ActiveView =
+  | 'tournaments'
   | 'tournament-hub'
   | 'dashboard'
-  | 'tournament-setup-and-groups'
-  | 'matches-and-fixtures'
-  | 'standings-and-leaderboard'
+  | 'create-tournament'
   | 'teams'
+  | 'groups'
+  | 'tournament-setup-and-groups'
+  | 'matches'
+  | 'matches-and-fixtures'
+  | 'standings'
+  | 'standings-and-leaderboard'
   | 'bracket'
+  | 'settings'
   | 'tournament-settings'
   | 'user-portal';

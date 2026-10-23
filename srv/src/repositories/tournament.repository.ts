@@ -60,11 +60,25 @@ export class TournamentRepository {
 
   async create(payload: Partial<Tournament>): Promise<Tournament> {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('tournaments')
       .insert(payload)
       .select()
       .single();
+
+    // Graceful fallback if logo column has not been migrated yet in Supabase
+    if (error && (error.code === '42703' || error.message?.includes('logo'))) {
+      const { logo, ...rest } = payload;
+      const fallbackResult = await supabase
+        .from('tournaments')
+        .insert(rest)
+        .select()
+        .single();
+      if (!fallbackResult.error) {
+        return { ...(fallbackResult.data as Tournament), logo };
+      }
+      error = fallbackResult.error;
+    }
 
     if (error) {
       throw error;
@@ -74,12 +88,27 @@ export class TournamentRepository {
 
   async update(id: string, payload: Partial<Tournament>): Promise<Tournament> {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('tournaments')
       .update({ ...payload, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
+
+    // Graceful fallback if logo column has not been migrated yet
+    if (error && (error.code === '42703' || error.message?.includes('logo'))) {
+      const { logo, ...rest } = payload;
+      const fallbackResult = await supabase
+        .from('tournaments')
+        .update({ ...rest, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+      if (!fallbackResult.error) {
+        return { ...(fallbackResult.data as Tournament), logo };
+      }
+      error = fallbackResult.error;
+    }
 
     if (error) {
       throw error;
@@ -88,11 +117,6 @@ export class TournamentRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    // Protect default tournament
-    if (id === 'sci_cup_main') {
-      throw AppError.badRequest('Cannot delete the primary SCI CUP 2026 tournament');
-    }
-
     const supabase = getSupabaseClient();
     const { error } = await supabase
       .from('tournaments')

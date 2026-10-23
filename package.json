@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "cln",
+    "srv"
+  ],
   "scripts": {
     "dev": "concurrently -n \"CLIENT,SERVER\" -c \"cyan.bold,magenta.bold\" \"npm run dev:client\" \"npm run dev:server\"",
     "dev:all": "concurrently -n \"CLIENT,SERVER\" -c \"cyan.bold,magenta.bold\" \"npm run dev:client\" \"npm run dev:server\"",

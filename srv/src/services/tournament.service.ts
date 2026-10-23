@@ -1,6 +1,7 @@
 import { tournamentRepository } from '../repositories/tournament.repository.ts';
 import { Tournament } from '../types/models.types.ts';
 import { AppError } from '../middleware/errorHandler.ts';
+import { imageService } from './image.service.ts';
 
 export class TournamentService {
   async getAllTournaments(): Promise<Tournament[]> {
@@ -16,39 +17,88 @@ export class TournamentService {
   }
 
   async createTournament(payload: {
-    id: string;
+    id?: string;
     name: string;
     description?: string;
+    logo?: string;
     start_date?: string;
     end_date?: string;
     knockout_starting_round?: 'qf' | 'sf' | 'final';
     is_user_portal_enabled?: boolean;
   }): Promise<Tournament> {
-    const existing = await tournamentRepository.findById(payload.id);
-    if (existing) {
-      throw AppError.conflict(`Tournament with ID "${payload.id}" already exists`);
+    const tournamentId = payload.id?.trim();
+    if (tournamentId) {
+      const existing = await tournamentRepository.findById(tournamentId);
+      if (existing) {
+        throw AppError.conflict(`Tournament with ID "${tournamentId}" already exists`);
+      }
+    }
+
+    let finalLogo = payload.logo || undefined;
+    if (finalLogo && finalLogo.startsWith('data:image/')) {
+      try {
+        const decoded = imageService.decodeAndValidateBase64(finalLogo);
+        const storagePath = imageService.buildStoragePath(
+          tournamentId || 'new_tournament',
+          'tournaments',
+          'logo',
+          decoded.extension
+        );
+        const uploadResult = await imageService.uploadToStorage(
+          storagePath,
+          decoded.buffer,
+          decoded.contentType,
+          finalLogo
+        );
+        finalLogo = uploadResult.url;
+      } catch (uploadErr) {
+        console.warn('[TournamentService] Logo upload to storage failed, using fallback:', uploadErr);
+      }
     }
 
     const newTournament: Partial<Tournament> = {
       ...payload,
-      status: 'ACTIVE',
+      logo: finalLogo,
       is_bracket_locked: false,
       is_knockout_created: false,
       bracket_data: {},
     };
+    if (tournamentId) {
+      newTournament.id = tournamentId;
+    }
 
     return tournamentRepository.create(newTournament);
   }
 
   async updateTournament(id: string, payload: Partial<Tournament>): Promise<Tournament> {
     await this.getTournamentById(id); // Ensure exists
-    return tournamentRepository.update(id, payload);
+
+    const updateData = { ...payload };
+    if (updateData.logo && updateData.logo.startsWith('data:image/')) {
+      try {
+        const decoded = imageService.decodeAndValidateBase64(updateData.logo);
+        const storagePath = imageService.buildStoragePath(
+          id,
+          'tournaments',
+          'logo',
+          decoded.extension
+        );
+        const uploadResult = await imageService.uploadToStorage(
+          storagePath,
+          decoded.buffer,
+          decoded.contentType,
+          updateData.logo
+        );
+        updateData.logo = uploadResult.url;
+      } catch (uploadErr) {
+        console.warn('[TournamentService] Logo update to storage failed, using fallback:', uploadErr);
+      }
+    }
+
+    return tournamentRepository.update(id, updateData);
   }
 
   async deleteTournament(id: string): Promise<void> {
-    if (id === 'sci_cup_main') {
-      throw AppError.badRequest('Cannot delete primary tournament "sci_cup_main"');
-    }
     await this.getTournamentById(id); // Ensure exists
     try {
       const { deleteTournamentCascade } = await import('../repositories/transaction.helper.ts');

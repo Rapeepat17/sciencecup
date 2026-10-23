@@ -43,7 +43,19 @@ import { TeamsView } from './components/TeamsView';
 import { BracketView } from './components/BracketView';
 import { TournamentSettingsView } from './components/TournamentSettingsView';
 import { UserLayout } from './components/layout/user';
+import { AdminLayout } from './components/layout/admin';
 import { HomePage, StandingsPage, KnockoutPage } from './pages/user';
+import {
+  TournamentsPage as AdminTournamentsPage,
+  DashboardPage as AdminDashboardPage,
+  CreateTournamentPage as AdminCreateTournamentPage,
+  TeamsPage as AdminTeamsPage,
+  GroupsPage as AdminGroupsPage,
+  MatchesPage as AdminMatchesPage,
+  StandingsPage as AdminStandingsPage,
+  BracketPage as AdminBracketPage,
+  SettingsPage as AdminSettingsPage,
+} from './pages/admin';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { TournamentHubView } from './components/TournamentHubView';
 import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
@@ -51,13 +63,19 @@ import { authService } from './services/authService';
 type UserTab = 'fixtures' | 'standings' | 'bracket';
 
 const ADMIN_VIEW_HASHES: Record<ActiveView, string> = {
-  'tournament-hub': 'tournament-hub',
+  'tournaments': 'tournaments',
+  'tournament-hub': 'tournaments',
   'dashboard': 'dashboard',
-  'tournament-setup-and-groups': 'setup',
-  'matches-and-fixtures': 'admin-matches',
-  'standings-and-leaderboard': 'admin-standings',
-  'bracket': 'admin-bracket',
+  'create-tournament': 'create-tournament',
   'teams': 'teams',
+  'groups': 'groups',
+  'tournament-setup-and-groups': 'groups',
+  'matches': 'matches',
+  'matches-and-fixtures': 'matches',
+  'standings': 'standings',
+  'standings-and-leaderboard': 'standings',
+  'bracket': 'bracket',
+  'settings': 'settings',
   'tournament-settings': 'settings',
   'user-portal': 'fixtures',
 };
@@ -76,28 +94,31 @@ function getRouteFromLocation(): { appMode: AppMode; activeView: ActiveView; use
 
   if (hash) {
     if (hash === 'tournament-hub' || hash === 'tournaments' || hash === 'hub') {
-      return { appMode: 'admin', activeView: 'tournament-hub', userTab: 'fixtures' };
+      return { appMode: 'admin', activeView: 'tournaments', userTab: 'fixtures' };
     }
     if (hash === 'dashboard' || hash === 'admin-dashboard') {
       return { appMode: 'admin', activeView: 'dashboard', userTab: 'fixtures' };
     }
-    if (hash === 'setup' || hash === 'tournament-setup' || hash === 'tournament-setup-and-groups') {
-      return { appMode: 'admin', activeView: 'tournament-setup-and-groups', userTab: 'fixtures' };
-    }
-    if (hash === 'admin-matches' || hash === 'matches-and-fixtures') {
-      return { appMode: 'admin', activeView: 'matches-and-fixtures', userTab: 'fixtures' };
-    }
-    if (hash === 'admin-standings' || hash === 'standings-and-leaderboard') {
-      return { appMode: 'admin', activeView: 'standings-and-leaderboard', userTab: 'fixtures' };
-    }
-    if (hash === 'admin-bracket') {
-      return { appMode: 'admin', activeView: 'bracket', userTab: 'fixtures' };
+    if (hash === 'create-tournament') {
+      return { appMode: 'admin', activeView: 'create-tournament', userTab: 'fixtures' };
     }
     if (hash === 'teams' || hash === 'admin-teams') {
       return { appMode: 'admin', activeView: 'teams', userTab: 'fixtures' };
     }
+    if (hash === 'groups' || hash === 'setup' || hash === 'tournament-setup' || hash === 'tournament-setup-and-groups') {
+      return { appMode: 'admin', activeView: 'groups', userTab: 'fixtures' };
+    }
+    if (hash === 'matches' || hash === 'admin-matches' || hash === 'matches-and-fixtures') {
+      return { appMode: 'admin', activeView: 'matches', userTab: 'fixtures' };
+    }
+    if (hash === 'standings' || hash === 'admin-standings' || hash === 'standings-and-leaderboard') {
+      return { appMode: 'admin', activeView: 'standings', userTab: 'fixtures' };
+    }
+    if (hash === 'bracket' || hash === 'admin-bracket') {
+      return { appMode: 'admin', activeView: 'bracket', userTab: 'fixtures' };
+    }
     if (hash === 'settings' || hash === 'tournament-settings') {
-      return { appMode: 'admin', activeView: 'tournament-settings', userTab: 'fixtures' };
+      return { appMode: 'admin', activeView: 'settings', userTab: 'fixtures' };
     }
     if (hash === 'fixtures' || hash === 'user-fixtures' || hash === 'user-portal') {
       return { appMode: 'user', activeView: 'user-portal', userTab: 'fixtures' };
@@ -107,18 +128,6 @@ function getRouteFromLocation(): { appMode: AppMode; activeView: ActiveView; use
     }
     if (hash === 'user-bracket') {
       return { appMode: 'user', activeView: 'user-portal', userTab: 'bracket' };
-    }
-    if (hash === 'bracket') {
-      if (savedAppMode === 'admin') {
-        return { appMode: 'admin', activeView: 'bracket', userTab: 'fixtures' };
-      }
-      return { appMode: 'user', activeView: 'user-portal', userTab: 'bracket' };
-    }
-    if (hash === 'matches') {
-      if (savedAppMode === 'admin') {
-        return { appMode: 'admin', activeView: 'matches-and-fixtures', userTab: 'fixtures' };
-      }
-      return { appMode: 'user', activeView: 'user-portal', userTab: 'fixtures' };
     }
   }
 
@@ -138,16 +147,19 @@ function getRouteFromLocation(): { appMode: AppMode; activeView: ActiveView; use
 export default function App() {
   const [initialDb] = useState(() => loadDatabaseSync());
 
-  const [tournaments, setTournaments] = useState<TournamentItem[]>(() => loadTournamentsListSync());
+  const [initialTournaments] = useState(() => loadTournamentsListSync());
+  const [tournaments, setTournaments] = useState<TournamentItem[]>(initialTournaments);
   const [currentTournamentId, setCurrentTournamentId] = useState<string>(() => {
     try {
-      return localStorage.getItem('scicup_current_tournament_id') || DEFAULT_TOURNAMENT_ID;
-    } catch {
-      return DEFAULT_TOURNAMENT_ID;
-    }
+      const stored = localStorage.getItem('scicup_current_tournament_id');
+      if (stored) return stored;
+    } catch {}
+    return initialTournaments.length > 0 ? initialTournaments[0].id : '';
   });
 
-  const [tournamentName, setTournamentName] = useState<string>(initialDb.tournamentName || 'SCI CUP 2026');
+  const [tournamentName, setTournamentName] = useState<string>(initialDb.tournamentName || '');
+  const [tournamentDescription, setTournamentDescription] = useState<string>(initialDb.description || '');
+  const [tournamentLogo, setTournamentLogo] = useState<string>(initialDb.logo || '');
   const [teams, setTeams] = useState<Team[]>(initialDb.teams ?? []);
   const [groups, setGroups] = useState<GroupMap>(initialDb.groups ?? {});
   const [matches, setMatches] = useState<Match[]>(initialDb.matches ?? []);
@@ -228,7 +240,9 @@ export default function App() {
       lastUpdatedAtRef.current = Date.now();
     }
 
-    if (data.tournamentName) setTournamentName(data.tournamentName);
+    setTournamentName(data.tournamentName || '');
+    setTournamentDescription(data.description || '');
+    setTournamentLogo(data.logo || '');
 
     if (Array.isArray(data.teams)) {
       setTeams((prevTeams) => {
@@ -334,12 +348,37 @@ export default function App() {
     const fetchInitial = async () => {
       const reqSeq = ++tournamentSwitchSeqRef.current;
       try {
-        const [tourneysList, data] = await Promise.all([
-          fetchTournamentsList(),
-          fetchDatabase(currentTournamentId),
-        ]);
+        const tourneysList = await fetchTournamentsList();
         if (reqSeq !== tournamentSwitchSeqRef.current) return;
-        if (tourneysList && isMounted) setTournaments(tourneysList);
+        if (isMounted) setTournaments(tourneysList || []);
+
+        if (!tourneysList || tourneysList.length === 0) {
+          if (isMounted) {
+            setCurrentTournamentId('');
+            setTournamentName('');
+            setTeams([]);
+            setGroups({});
+            setMatches([]);
+            try {
+              localStorage.removeItem('scicup_current_tournament_id');
+            } catch {}
+          }
+          return;
+        }
+
+        const effectiveId = tourneysList.some((t) => t.id === currentTournamentId)
+          ? currentTournamentId
+          : tourneysList[0].id;
+
+        if (effectiveId !== currentTournamentId && isMounted) {
+          setCurrentTournamentId(effectiveId);
+          try {
+            localStorage.setItem('scicup_current_tournament_id', effectiveId);
+          } catch {}
+        }
+
+        const data = await fetchDatabase(effectiveId);
+        if (reqSeq !== tournamentSwitchSeqRef.current) return;
         if (data && isMounted) {
           applyDatabaseData(data, true);
           initialHydratedRef.current = true;
@@ -1029,7 +1068,13 @@ export default function App() {
     const freshList = await fetchTournamentsList();
     setTournaments(freshList);
     if (tourneyId === currentTournamentId) {
-      await handleSelectTournament(DEFAULT_TOURNAMENT_ID);
+      const nextId = freshList && freshList.length > 0 ? freshList[0].id : '';
+      if (nextId) {
+        await handleSelectTournament(nextId);
+      } else {
+        setCurrentTournamentId('');
+        setTournamentName('');
+      }
     }
   }, [currentTournamentId, handleSelectTournament]);
 
@@ -1302,26 +1347,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] text-[#1b1c1c] font-sans antialiased flex flex-col selection:bg-[#ffe680] selection:text-[#786607]">
-      {/* Offline Fallback Warning Banner */}
-      {isOfflineFallback && (
-        <div className="bg-amber-500/10 border-b border-amber-500/30 text-amber-900 px-4 py-2.5 text-xs flex items-center justify-between gap-3 sticky top-0 z-50 backdrop-blur-md">
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span className="truncate">
-              <strong>แจ้งเตือน:</strong> กำลังแสดงข้อมูลสำรองในเครื่อง (Offline Cache) เนื่องจากไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ Backend ได้ ข้อมูลอาจไม่ใช่ข้อมูลล่าสุด
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => handleSelectTournament(currentTournamentId)}
-            className="px-2.5 py-1 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold transition-colors cursor-pointer text-[11px] shrink-0 flex items-center gap-1"
-          >
-            <RefreshCw className="w-3 h-3" />
-            <span>ลองเชื่อมต่อใหม่ (Retry)</span>
-          </button>
-        </div>
-      )}
-
       {/* Loading Overlay */}
       {!isDbLoaded && (
         <div className="fixed inset-0 z-50 bg-white/70 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1332,173 +1357,51 @@ export default function App() {
         </div>
       )}
       {appMode === 'admin' ? (
-        <div className="min-h-screen flex flex-col bg-[#f8f9fa]">
-          <Sidebar
-            activeView={activeView}
-            setActiveView={navigateToAdminView}
-            tournamentName={tournamentName}
-            isMobileOpen={isMobileSidebarOpen}
-            setIsMobileOpen={setIsMobileSidebarOpen}
-            onSwitchToUser={() => navigateToUserTab(userPortalTab)}
-            onAdminLogout={handleAdminLogout}
-            teamsCount={teams.length}
-            isUserPortalEnabled={isUserPortalEnabled}
-            onSwitchTournament={() => navigateToAdminView('tournament-hub')}
-          />
-          <Header
-            activeView={activeView}
-            setActiveView={navigateToAdminView}
-            tournamentName={tournamentName}
-            dbStatus={dbStatus}
-            isAdminLoggedIn={isAdminLoggedIn}
-            onOpenAdminLogin={() => setIsAdminLoginModalOpen(true)}
-            onAdminLogout={handleAdminLogout}
-            onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            onSwitchToUser={() => navigateToUserTab(userPortalTab)}
-          />
-          <div className="lg:pl-72 pt-16 flex-1 flex flex-col min-w-0">
-            <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">
-              {activeView === 'tournament-hub' && (
-                <TournamentHubView
-                  tournaments={tournaments}
-                  currentTournamentId={currentTournamentId}
-                  onSelectTournament={(id) => {
-                    handleSelectTournament(id);
-                    navigateToAdminView('dashboard');
-                  }}
-                  onCreateTournament={handleCreateTournament}
-                  onUpdateTournament={handleUpdateTournament}
-                  onDeleteTournament={handleDeleteTournament}
-                  onOpenUserPortal={(id) => {
-                    if (id) handleSelectTournament(id);
-                    navigateToUserTab('fixtures');
-                  }}
-                />
-              )}
-              {activeView === 'dashboard' && (
-                <DashboardView
-                  tournamentName={tournamentName}
-                  matches={matches}
-                  teams={teams}
-                  groups={groups}
-                  setActiveView={navigateToAdminView}
-                  dbStatus={dbStatus}
-                  isDbLoaded={isDbLoaded}
-                />
-              )}
-              {activeView === 'tournament-setup-and-groups' && (
-                <TournamentSetupView
-                  tournamentName={tournamentName}
-                  setTournamentName={setTournamentName}
-                  teams={teams}
-                  setTeams={setTeams}
-                  groups={groups}
-                  setGroups={setGroups}
-                  matches={matches}
-                  setMatches={setMatches}
-                  onProceedToFixtures={handleSaveTournamentAndProceed}
-                  onClearAllTeams={handleClearAllTeams}
-                  onGoToMatches={() => navigateToAdminView('matches-and-fixtures')}
-                  onGoToBracket={() => navigateToAdminView('bracket')}
-                  onResetDatabase={handleResetDatabase}
-                />
-              )}
-              {activeView === 'matches-and-fixtures' && (
-                <MatchesFixturesView
-                  matches={matches}
-                  setMatches={setMatches}
-                  teams={teams}
-                  groups={groups}
-                  knockoutStartingRound={knockoutStartingRound}
-                  r16Matches={r16Matches}
-                  setR16Matches={setR16Matches}
-                  qfMatches={qfMatches}
-                  setQfMatches={setQfMatches}
-                  sfMatches={sfMatches}
-                  setSfMatches={setSfMatches}
-                  finalMatch={finalMatch}
-                  setFinalMatch={setFinalMatch}
-                />
-              )}
-              {activeView === 'standings-and-leaderboard' && (
-                <StandingsView
-                  groups={groups}
-                  matches={matches}
-                  knockoutStartingRound={knockoutStartingRound}
-                />
-              )}
-              {activeView === 'teams' && (
-                <TeamsView
-                  teams={teams}
-                  setTeams={setTeams}
-                  groups={groups}
-                  setGroups={setGroups}
-                  matches={matches}
-                  setMatches={setMatches}
-                  currentTournamentId={currentTournamentId}
-                />
-              )}
-              {activeView === 'bracket' && (
-                <BracketView
-                  knockoutStartingRound={knockoutStartingRound}
-                  setKnockoutStartingRound={setKnockoutStartingRound}
-                  r16Matches={r16Matches}
-                  setR16Matches={setR16Matches}
-                  qfMatches={qfMatches}
-                  setQfMatches={setQfMatches}
-                  sfMatches={sfMatches}
-                  setSfMatches={setSfMatches}
-                  finalMatch={finalMatch}
-                  setFinalMatch={setFinalMatch}
-                  isBracketLocked={isBracketLocked}
-                  setIsBracketLocked={setIsBracketLocked}
-                  isKnockoutCreated={isKnockoutCreated}
-                  setIsKnockoutCreated={setIsKnockoutCreated}
-                  teams={teams}
-                  groups={groups}
-                  matches={matches}
-                  onSyncKnockoutToMatches={handleSyncKnockoutToMatches}
-                  onSaveBracket={handleSaveBracketData}
-                  onGoToMatches={() => navigateToAdminView('matches-and-fixtures')}
-                />
-              )}
-              {activeView === 'tournament-settings' && (
-                <TournamentSettingsView
-                  tournamentName={tournamentName}
-                  setTournamentName={setTournamentName}
-                  adminCredentials={adminCredentials}
-                  setAdminCredentials={setAdminCredentials}
-                  isUserPortalEnabled={isUserPortalEnabled}
-                  setIsUserPortalEnabled={setIsUserPortalEnabled}
-                  onAdminLogout={handleAdminLogout}
-                  onSaveSettings={(name, creds, userPortalState) => {
-                    saveDatabase(
-                      {
-                        tournamentName: name,
-                        teams,
-                        groups,
-                        matches,
-                        knockoutStartingRound,
-                        r16Matches,
-                        qfMatches,
-                        sfMatches,
-                        finalMatch,
-                        isBracketLocked,
-                        isKnockoutCreated,
-                        isUserPortalEnabled: userPortalState,
-                        adminCredentials: creds,
-                        updatedAt: Date.now(),
-                      },
-                      currentTournamentId
-                    );
-                  }}
-                />
-              )}
-            </main>
-          </div>
-        </div>
+        <AdminLayout
+          activeView={activeView}
+          setActiveView={navigateToAdminView}
+          tournamentName={tournamentName}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          onSwitchToUser={() => navigateToUserTab(userPortalTab)}
+          onAdminLogout={handleAdminLogout}
+          teamsCount={teams.length}
+          isUserPortalEnabled={isUserPortalEnabled}
+          onSwitchTournament={() => navigateToAdminView('tournaments')}
+          headerProps={{
+            dbStatus,
+            isAdminLoggedIn,
+            onOpenAdminLogin: () => setIsAdminLoginModalOpen(true),
+          }}
+        >
+          {/* เชื่อมต่อ 9 หน้าแอดมิน */}
+          {(activeView === 'tournaments' || activeView === 'tournament-hub') && (
+            <AdminTournamentsPage
+              tournaments={tournaments}
+              currentTournamentId={currentTournamentId}
+              onSelectTournament={handleSelectTournament}
+              onUpdateTournament={handleUpdateTournament}
+              onDeleteTournament={handleDeleteTournament}
+              onNavigateToCreate={() => navigateToAdminView('create-tournament')}
+              onNavigateToDashboard={() => navigateToAdminView('dashboard')}
+              onOpenUserPortal={() => navigateToUserTab(userPortalTab)}
+            />
+          )}
+          {activeView === 'dashboard' && <AdminDashboardPage />}
+          {activeView === 'create-tournament' && <AdminCreateTournamentPage />}
+          {activeView === 'teams' && (
+            <AdminTeamsPage
+              currentTournamentId={currentTournamentId}
+              tournamentName={tournamentName}
+              onSelectTournament={() => navigateToAdminView('tournaments')}
+            />
+          )}
+          {(activeView === 'groups' || activeView === 'tournament-setup-and-groups') && <AdminGroupsPage />}
+          {(activeView === 'matches' || activeView === 'matches-and-fixtures') && <AdminMatchesPage />}
+          {(activeView === 'standings' || activeView === 'standings-and-leaderboard') && <AdminStandingsPage />}
+          {activeView === 'bracket' && <AdminBracketPage />}
+          {(activeView === 'settings' || activeView === 'tournament-settings') && <AdminSettingsPage />}
+        </AdminLayout>
       ) : !isUserPortalEnabled && !isAdminLoggedIn ? (
         /* User Portal Closed / Maintenance View */
         <div className="min-h-screen bg-[#f8f9fa] flex flex-col items-center justify-center p-6 text-center">
@@ -1564,11 +1467,31 @@ export default function App() {
               }
             }}
             title={tournamentName}
-            subtitle="การแข่งขันฟุตบอลภายในคณะวิทยาศาสตร์"
+            subtitle={tournamentDescription}
+            logoUrl={tournamentLogo || '/science_cup_logo.png'}
           >
-            {userPortalTab === 'fixtures' && <HomePage />}
-            {userPortalTab === 'standings' && <StandingsPage />}
-            {userPortalTab === 'bracket' && <KnockoutPage />}
+            {userPortalTab === 'fixtures' && (
+              <HomePage
+                tournamentId={currentTournamentId}
+                matches={matches}
+              />
+            )}
+            {userPortalTab === 'standings' && (
+              <StandingsPage
+                tournamentId={currentTournamentId}
+                groups={groups}
+                matches={matches}
+                teams={teams}
+              />
+            )}
+            {userPortalTab === 'bracket' && (
+              <KnockoutPage
+                tournamentId={currentTournamentId}
+                qfMatches={qfMatches}
+                sfMatches={sfMatches}
+                finalMatch={finalMatch}
+              />
+            )}
           </UserLayout>
         </div>
       )}
