@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   listMatches,
   getMatch,
+  syncMatches,
   createMatch,
   updateMatchScore,
   addMatchEvent,
@@ -11,7 +12,12 @@ import {
 import { authenticate, requireTournament, requireTournamentRole } from '../middleware/auth.middleware.ts';
 import { validate } from '../middleware/validate.middleware.ts';
 import { tournamentIdParamSchema } from '../schemas/tournament.schema.ts';
-import { matchIdParamSchema, updateMatchScoreSchema, createMatchSchema } from '../schemas/match.schema.ts';
+import {
+  matchIdParamSchema,
+  updateMatchScoreSchema,
+  createMatchSchema,
+  syncMatchesSchema,
+} from '../schemas/match.schema.ts';
 
 const router = Router({ mergeParams: true });
 
@@ -24,7 +30,15 @@ router.get('/standings', validate({ params: tournamentIdParamSchema }), getStand
 router.get('/:matchId', validate({ params: matchIdParamSchema }), getMatch);
 router.get('/:matchId/events', validate({ params: matchIdParamSchema }), getMatchEvents);
 
-// Protected routes (scorekeepers, admins, owners)
+// Protected routes (admins, owners, scorekeepers)
+router.put(
+  '/',
+  authenticate,
+  requireTournamentRole(['admin', 'owner']),
+  validate({ params: tournamentIdParamSchema, body: syncMatchesSchema }),
+  syncMatches
+);
+
 router.post(
   '/',
   authenticate,

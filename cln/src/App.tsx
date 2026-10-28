@@ -33,15 +33,6 @@ import {
 import { supabase } from './services/supabaseClient';
 import { generateInterleavedRoundRobinMatches } from './utils/fixtureGenerator';
 import { calculateGroupStandings, resolveSeedFromStandings, isSeedPlaceholder } from './utils/standingsCalculator';
-import { Header } from './components/Header';
-import { Sidebar } from './components/Sidebar';
-import { DashboardView } from './components/DashboardView';
-import { TournamentSetupView } from './components/TournamentSetupView';
-import { MatchesFixturesView } from './components/MatchesFixturesView';
-import { StandingsView } from './components/StandingsView';
-import { TeamsView } from './components/TeamsView';
-import { BracketView } from './components/BracketView';
-import { TournamentSettingsView } from './components/TournamentSettingsView';
 import { UserLayout } from './components/layout/user';
 import { AdminLayout } from './components/layout/admin';
 import { HomePage, StandingsPage, KnockoutPage } from './pages/user';
@@ -57,7 +48,6 @@ import {
   SettingsPage as AdminSettingsPage,
 } from './pages/admin';
 import { AdminLoginModal } from './components/AdminLoginModal';
-import { TournamentHubView } from './components/TournamentHubView';
 import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 import { authService } from './services/authService';
 type UserTab = 'fixtures' | 'standings' | 'bracket';
@@ -154,7 +144,7 @@ export default function App() {
       const stored = localStorage.getItem('scicup_current_tournament_id');
       if (stored) return stored;
     } catch {}
-    return initialTournaments.length > 0 ? initialTournaments[0].id : '';
+    return initialTournaments.length > 0 ? String(initialTournaments[0].id) : '';
   });
 
   const [tournamentName, setTournamentName] = useState<string>(initialDb.tournamentName || '');
@@ -366,9 +356,9 @@ export default function App() {
           return;
         }
 
-        const effectiveId = tourneysList.some((t) => t.id === currentTournamentId)
-          ? currentTournamentId
-          : tourneysList[0].id;
+        const effectiveId = tourneysList.some((t) => String(t.id) === String(currentTournamentId))
+          ? String(currentTournamentId)
+          : String(tourneysList[0].id);
 
         if (effectiveId !== currentTournamentId && isMounted) {
           setCurrentTournamentId(effectiveId);
@@ -939,7 +929,18 @@ export default function App() {
 
       setMatches((prevMatches) => {
         let matchesChanged = false;
-        const existingKnockoutIds = new Set(prevMatches.map((m) => m.id));
+
+        const isAlreadyPresent = (bMatch: BracketMatchup) => {
+          const bNum = (bMatch as any).matchNumber;
+          return prevMatches.some(
+            (m) =>
+              m.id === bMatch.id ||
+              m.id === `bracket_${bMatch.id}` ||
+              (bNum && Number(m.matchNumber) === Number(bNum)) ||
+              (m.round && bMatch.roundName && m.round === bMatch.roundName && Number(m.matchNumber) === Number(bNum))
+          );
+        };
+
         const missingBracketMatches: Match[] = [];
 
         const baseGroupMatchNumber = prevMatches
@@ -947,7 +948,7 @@ export default function App() {
           .reduce((max, m) => Math.max(max, m.matchNumber || 0), 0);
 
         activeBracketList.forEach((bMatch, bIdx) => {
-          if (!existingKnockoutIds.has(bMatch.id)) {
+          if (!isAlreadyPresent(bMatch)) {
             matchesChanged = true;
             missingBracketMatches.push({
               id: bMatch.id,
@@ -961,9 +962,9 @@ export default function App() {
               score2: bMatch.team2?.score ?? 0,
               status: bMatch.winner ? 'FT' : 'UPCOMING',
               statusLabel: bMatch.winner ? 'จบเกมส์' : 'ยังไม่เริ่ม',
-              dateStr: bMatch.date || '21 ก.ย. 2026',
+              dateStr: bMatch.date || 'TBD',
               timeStr: bMatch.time || '',
-              venue: bMatch.venue || 'สนามอ่าง',
+              venue: bMatch.venue || 'สนาม 1',
             });
           }
         });
@@ -988,7 +989,9 @@ export default function App() {
             return m;
           }
 
-          const bMatch = activeBracketList.find((b) => b.id === m.id);
+          const bMatch = activeBracketList.find(
+            (b) => b.id === m.id || `bracket_${b.id}` === m.id || ((b as any).matchNumber && Number((b as any).matchNumber) === Number(m.matchNumber))
+          );
           if (bMatch) {
             let t1 = m.team1;
             let t2 = m.team2;
@@ -1009,10 +1012,23 @@ export default function App() {
           return m;
         });
 
-        if (matchesChanged) {
-          return [...updatedMatches, ...missingBracketMatches];
+        // Always deduplicate by matchNumber
+        const dedupedFinal: Match[] = [];
+        const seenFinalNums = new Set<number>();
+        const candidateList = matchesChanged
+          ? [...updatedMatches, ...missingBracketMatches]
+          : prevMatches;
+
+        for (const cand of candidateList) {
+          const num = Number(cand.matchNumber);
+          if (num > 0) {
+            if (seenFinalNums.has(num)) continue;
+            seenFinalNums.add(num);
+          }
+          dedupedFinal.push(cand);
         }
-        return prevMatches;
+
+        return dedupedFinal;
       });
     }
   }, [matches, r16Matches, qfMatches, sfMatches, finalMatch, knockoutStartingRound, isKnockoutCreated, isDbLoaded]);
@@ -1396,10 +1412,30 @@ export default function App() {
               onSelectTournament={() => navigateToAdminView('tournaments')}
             />
           )}
-          {(activeView === 'groups' || activeView === 'tournament-setup-and-groups') && <AdminGroupsPage />}
-          {(activeView === 'matches' || activeView === 'matches-and-fixtures') && <AdminMatchesPage />}
-          {(activeView === 'standings' || activeView === 'standings-and-leaderboard') && <AdminStandingsPage />}
-          {activeView === 'bracket' && <AdminBracketPage />}
+          {(activeView === 'groups' || activeView === 'tournament-setup-and-groups') && (
+            <AdminGroupsPage
+              currentTournamentId={currentTournamentId}
+              tournamentName={tournamentName}
+            />
+          )}
+          {(activeView === 'matches' || activeView === 'matches-and-fixtures') && (
+            <AdminMatchesPage
+              currentTournamentId={currentTournamentId}
+              tournamentName={tournamentName}
+            />
+          )}
+          {(activeView === 'standings' || activeView === 'standings-and-leaderboard') && (
+            <AdminStandingsPage
+              currentTournamentId={currentTournamentId}
+              tournamentName={tournamentName}
+            />
+          )}
+          {activeView === 'bracket' && (
+            <AdminBracketPage
+              currentTournamentId={currentTournamentId}
+              tournamentName={tournamentName}
+            />
+          )}
           {(activeView === 'settings' || activeView === 'tournament-settings') && <AdminSettingsPage />}
         </AdminLayout>
       ) : !isUserPortalEnabled && !isAdminLoggedIn ? (
@@ -1473,7 +1509,6 @@ export default function App() {
             {userPortalTab === 'fixtures' && (
               <HomePage
                 tournamentId={currentTournamentId}
-                matches={matches}
               />
             )}
             {userPortalTab === 'standings' && (

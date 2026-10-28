@@ -40,4 +40,35 @@ export const tournamentService = {
   updateBracket: (id: string, data: any): Promise<any> => {
     return apiClient.patch<any>(`/api/v1/tournaments/${id}/bracket`, data);
   },
+
+  autoSeedBracket: (id: string): Promise<any> => {
+    return apiClient.post<any>(`/api/v1/tournaments/${id}/bracket/auto-seed`, {});
+  },
+
+  getGroups: (id: string, signal?: AbortSignal): Promise<{ groups: Array<{ id: number | string; name: string }>; teamsByGroup: Record<string, any[]> }> => {
+    return apiClient.get<{ groups: Array<{ id: number | string; name: string }>; teamsByGroup: Record<string, any[]> }>(`/api/v1/tournaments/${id}/groups`, { signal });
+  },
+
+  createGroup: (tournamentId: string, name: string): Promise<any> => {
+    return apiClient.post<any>(`/api/v1/tournaments/${tournamentId}/groups`, { name });
+  },
+
+  renameGroup: (tournamentId: string, groupId: number | string, oldName: string, newName: string): Promise<any> => {
+    return apiClient.patch<any>(`/api/v1/tournaments/${tournamentId}/groups/${groupId}`, { oldName, newName });
+  },
+
+  deleteGroup: (tournamentId: string, groupId: number | string, groupName?: string): Promise<any> => {
+    const query = groupName ? `?groupName=${encodeURIComponent(groupName)}` : '';
+    return apiClient.delete<any>(`/api/v1/tournaments/${tournamentId}/groups/${groupId}${query}`);
+  },
+
+  updateGroups: (
+    id: string,
+    payload: {
+      groups?: string[];
+      assignments?: Array<{ teamId: string | number; groupName: string | null }>;
+    }
+  ): Promise<any> => {
+    return apiClient.patch<any>(`/api/v1/tournaments/${id}/groups`, payload);
+  },
 };

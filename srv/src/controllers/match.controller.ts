@@ -38,6 +38,24 @@ export async function getMatch(req: Request, res: Response, next: NextFunction):
   }
 }
 
+export async function syncMatches(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tournamentId } = req.params;
+    const matches = await matchService.syncMatches(tournamentId, req.body.matches || []);
+    const response: ApiResponse = {
+      success: true,
+      data: matches,
+      meta: {
+        total: matches.length,
+        timestamp: new Date().toISOString(),
+      },
+    };
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function createMatch(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { tournamentId } = req.params;

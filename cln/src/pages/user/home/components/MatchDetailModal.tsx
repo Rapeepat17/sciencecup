@@ -22,7 +22,13 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
   const t1Name = match.team1?.name || 'ทีมเหย้า';
   const t2Name = match.team2?.name || 'ทีมเยือน';
 
-  const groupLabel = match.group
+  const isKnockout =
+    match.group === 'Knockout' ||
+    (match.round && !match.round.includes('รอบแบ่งกลุ่ม'));
+
+  const groupLabel = isKnockout
+    ? match.round || 'รอบน็อคเอาท์'
+    : match.group
     ? match.group.startsWith('กลุ่ม') || match.group.startsWith('สาย')
       ? match.group
       : `กลุ่ม ${match.group}`

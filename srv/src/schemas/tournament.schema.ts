@@ -28,3 +28,13 @@ export const updateTournamentSchema = createTournamentSchema
     is_knockout_created: z.boolean().optional(),
     bracket_data: z.record(z.string(), z.any()).optional(),
   });
+
+export const updateGroupsSchema = z.object({
+  groups: z.array(z.string().min(1).max(50)).optional(),
+  assignments: z.array(
+    z.object({
+      teamId: z.union([z.string(), z.number()]),
+      groupName: z.string().max(50).nullable(),
+    })
+  ).optional(),
+});

@@ -6,8 +6,13 @@ import {
   updateTournament,
   deleteTournament,
   getGroups,
+  createGroup,
+  renameGroup,
+  deleteGroup,
+  updateGroups,
   getBracket,
   updateBracket,
+  autoSeedBracket,
   getStandings,
 } from '../controllers/tournament.controller.ts';
 import { authenticate, requireTournamentRole } from '../middleware/auth.middleware.ts';
@@ -16,6 +21,7 @@ import {
   createTournamentSchema,
   updateTournamentSchema,
   tournamentIdParamSchema,
+  updateGroupsSchema,
 } from '../schemas/tournament.schema.ts';
 
 const router = Router();
@@ -43,12 +49,54 @@ router.patch(
   validate({ params: tournamentIdParamSchema, body: updateTournamentSchema }),
   updateTournament
 );
+router.put(
+  '/:tournamentId/groups',
+  authenticate,
+  requireTournamentRole(['admin', 'owner']),
+  validate({ params: tournamentIdParamSchema, body: updateGroupsSchema }),
+  updateGroups
+);
+router.patch(
+  '/:tournamentId/groups',
+  authenticate,
+  requireTournamentRole(['admin', 'owner']),
+  validate({ params: tournamentIdParamSchema, body: updateGroupsSchema }),
+  updateGroups
+);
+router.post(
+  '/:tournamentId/groups',
+  authenticate,
+  requireTournamentRole(['admin', 'owner']),
+  validate({ params: tournamentIdParamSchema }),
+  createGroup
+);
+router.patch(
+  '/:tournamentId/groups/:groupId',
+  authenticate,
+  requireTournamentRole(['admin', 'owner']),
+  validate({ params: tournamentIdParamSchema }),
+  renameGroup
+);
+router.delete(
+  '/:tournamentId/groups/:groupId',
+  authenticate,
+  requireTournamentRole(['admin', 'owner']),
+  validate({ params: tournamentIdParamSchema }),
+  deleteGroup
+);
 router.patch(
   '/:tournamentId/bracket',
   authenticate,
   requireTournamentRole(['admin', 'owner']),
   validate({ params: tournamentIdParamSchema }),
   updateBracket
+);
+router.post(
+  '/:tournamentId/bracket/auto-seed',
+  authenticate,
+  requireTournamentRole(['admin', 'owner']),
+  validate({ params: tournamentIdParamSchema }),
+  autoSeedBracket
 );
 router.delete(
   '/:tournamentId',

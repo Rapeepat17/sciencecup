@@ -29,6 +29,13 @@ export interface Team {
   created_at?: string;
 }
 
+export interface GroupItem {
+  id: number | string;
+  tournament_id: string;
+  name: string;
+  created_at?: string;
+}
+
 export interface Player {
   id: string;
   team_id: string;
@@ -54,19 +61,23 @@ export interface MatchEvent {
 }
 
 export interface Match {
-  id: string;
-  tournament_id: string;
-  stage: 'group' | 'qf' | 'sf' | 'final';
+  id: string | number;
+  tournament_id: string | number;
+  match_number?: number | null;
+  matchday?: number | null;
+  stage: 'group' | 'r16' | 'qf' | 'sf' | 'third_place' | 'final' | string;
+  round_name?: string | null;
   group_name?: string | null;
-  home_team_id: string;
-  away_team_id: string;
+  home_team_id: string | number;
+  away_team_id: string | number;
   home_score?: number | null;
   away_score?: number | null;
   home_penalty_score?: number | null;
   away_penalty_score?: number | null;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'POSTPONED';
+  status: 'SCHEDULED' | 'UPCOMING' | 'LIVE' | 'COMPLETED' | 'FT' | 'POSTPONED';
   match_date?: string | null;
   match_time?: string | null;
+  venue?: string | null;
   pitch?: string | null;
   events?: MatchEvent[];
   created_at?: string;
@@ -74,8 +85,12 @@ export interface Match {
 }
 
 export interface GroupStandingRow {
+  rank?: number;
+  isQualified?: boolean;
   teamId: string;
   teamName: string;
+  shortName?: string | null;
+  teamLogo?: string | null;
   groupName: string;
   played: number;
   won: number;
@@ -85,6 +100,21 @@ export interface GroupStandingRow {
   goalsAgainst: number;
   goalDifference: number;
   points: number;
+  form?: ('W' | 'D' | 'L')[];
+}
+
+export interface TournamentStandingsSummary {
+  totalGroups: number;
+  totalTeamsInGroups: number;
+  totalMatches: number;
+  completedMatches: number;
+  liveMatches: number;
+  totalGoals: number;
+}
+
+export interface TournamentStandingsResponse {
+  groups: Record<string, GroupStandingRow[]>;
+  summary: TournamentStandingsSummary;
 }
 
 export interface GroupSummary {

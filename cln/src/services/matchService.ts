@@ -1,6 +1,25 @@
 import { apiClient } from './apiClient';
 import { Match, MatchEvent } from '../types';
 
+export interface SyncMatchItemPayload {
+  id?: string | number;
+  match_number?: number;
+  matchday?: number;
+  stage?: string;
+  round_name?: string | null;
+  group_name?: string | null;
+  home_team_id: string | number;
+  away_team_id: string | number;
+  match_date?: string | null;
+  match_time?: string | null;
+  venue?: string | null;
+  status?: string;
+  home_score?: number | null;
+  away_score?: number | null;
+  home_penalty_score?: number | null;
+  away_penalty_score?: number | null;
+}
+
 export const matchService = {
   getByTournament: (tournamentId: string, stage?: string, signal?: AbortSignal): Promise<Match[]> => {
     const url = `/api/v1/tournaments/${tournamentId}/matches${stage ? `?stage=${stage}` : ''}`;
@@ -9,6 +28,10 @@ export const matchService = {
 
   getById: (tournamentId: string, matchId: string, signal?: AbortSignal): Promise<Match & { events: MatchEvent[] }> => {
     return apiClient.get<Match & { events: MatchEvent[] }>(`/api/v1/tournaments/${tournamentId}/matches/${matchId}`, { signal });
+  },
+
+  syncMatches: (tournamentId: string, matches: SyncMatchItemPayload[]): Promise<Match[]> => {
+    return apiClient.put<Match[]>(`/api/v1/tournaments/${tournamentId}/matches`, { matches });
   },
 
   create: (tournamentId: string, match: any): Promise<Match> => {

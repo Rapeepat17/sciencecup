@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { CalendarDays } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { CalendarDays, Loader2 } from 'lucide-react';
 import {
   FeaturedMatchHero,
   MatchHeaderBar,
@@ -8,8 +8,9 @@ import {
   MatchDetailModal,
   ViewMode,
 } from './components';
-import { Match } from '../../../types';
-import { fetchDatabase } from '../../../services/dbService';
+import { Match, Team } from '../../../types';
+import { matchService } from '../../../services/matchService';
+import { teamService } from '../../../services/teamService';
 
 export interface HomePageProps {
   tournamentId?: string;
@@ -18,13 +19,13 @@ export interface HomePageProps {
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
-  tournamentId,
-  matches: initialMatches,
+  tournamentId = '1000',
+  matches: propMatches,
   onSelectMatch,
 }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('card');
-  const [matches, setMatches] = useState<Match[]>(initialMatches ?? []);
-  const [isLoading, setIsLoading] = useState(false);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [selectedDetailMatch, setSelectedDetailMatch] = useState<Match | null>(null);
 
   const handleMatchClick = (match: Match) => {
@@ -34,36 +35,118 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
   };
 
-  // Sync matches whenever initialMatches prop updates from App.tsx
-  useEffect(() => {
-    if (initialMatches !== undefined) {
-      setMatches(initialMatches);
-    }
-  }, [initialMatches]);
+  // Direct fetch from API (Single Source of Truth - matching Admin schedule exactly)
+  const fetchSchedule = useCallback(async () => {
+    const tourneyId = tournamentId || '1000';
+    setIsLoading(true);
+    try {
+      const [rawMatches, rawTeams] = await Promise.all([
+        matchService.getByTournament(tourneyId),
+        teamService.getByTournament(tourneyId),
+      ]);
 
-  // Load matches from database if not provided via props
-  useEffect(() => {
-    if (initialMatches !== undefined) return;
-    let isMounted = true;
-    const fetchTournamentData = async () => {
-      try {
-        setIsLoading(true);
-        const data = await fetchDatabase(tournamentId);
-        if (isMounted && data && Array.isArray(data.matches)) {
-          setMatches(data.matches);
+      const teamMap = new Map<string, Team>();
+      (rawTeams || []).forEach((t: any) => teamMap.set(String(t.id), t));
+
+      const transformed: Match[] = (rawMatches || []).map((m: any, idx: number) => {
+        const homeTeam = m.home_team_id ? teamMap.get(String(m.home_team_id)) : undefined;
+        const awayTeam = m.away_team_id ? teamMap.get(String(m.away_team_id)) : undefined;
+
+        const normalizedGroup = m.group_name
+          ? String(m.group_name).replace(/^Group\s*/i, '').trim()
+          : m.stage === 'knockout'
+          ? 'Knockout'
+          : 'A';
+
+        const fallbackHomeName =
+          m.home_team_name ||
+          m.team1?.name ||
+          (m.home_team_id && String(m.home_team_id).trim() !== ''
+            ? String(m.home_team_id).trim()
+            : 'รอระบุทีม');
+
+        const fallbackAwayName =
+          m.away_team_name ||
+          m.team2?.name ||
+          (m.away_team_id && String(m.away_team_id).trim() !== ''
+            ? String(m.away_team_id).trim()
+            : 'รอระบุทีม');
+
+        const rawStatus = String(m.status || 'SCHEDULED').toUpperCase();
+        const uiStatus =
+          rawStatus === 'LIVE'
+            ? 'LIVE'
+            : rawStatus === 'COMPLETED' || rawStatus === 'FT' || rawStatus === 'FINISHED'
+            ? 'FT'
+            : rawStatus === 'POSTPONED'
+            ? 'POSTPONED'
+            : 'UPCOMING';
+
+        return {
+          id: String(m.id),
+          tournamentId: String(tourneyId),
+          matchNumber: m.match_number || idx + 1,
+          matchday: m.matchday || 1,
+          round:
+            m.round_name ||
+            m.round ||
+            (m.stage === 'knockout' ? 'รอบน็อคเอาท์' : 'รอบแบ่งกลุ่ม (Group Stage)'),
+          group: normalizedGroup,
+          dateStr: m.match_date || m.dateStr || 'TBD',
+          timeStr: m.match_time || m.timeStr || 'TBD',
+          venue: m.venue || m.pitch || 'สนาม 1',
+          team1: homeTeam || {
+            id: String(m.home_team_id || ''),
+            name: fallbackHomeName,
+            shortName: fallbackHomeName.slice(0, 3).toUpperCase(),
+            logo: m.home_team_logo || m.team1?.logo || '',
+          },
+          team2: awayTeam || {
+            id: String(m.away_team_id || ''),
+            name: fallbackAwayName,
+            shortName: fallbackAwayName.slice(0, 3).toUpperCase(),
+            logo: m.away_team_logo || m.team2?.logo || '',
+          },
+          score1:
+            m.home_score !== null && m.home_score !== undefined
+              ? Number(m.home_score)
+              : 0,
+          score2:
+            m.away_score !== null && m.away_score !== undefined
+              ? Number(m.away_score)
+              : 0,
+          penaltyScore1: m.home_penalty_score ?? null,
+          penaltyScore2: m.away_penalty_score ?? null,
+          status: uiStatus as any,
+        };
+      });
+
+      // Deduplicate by matchNumber strictly
+      const deduped: Match[] = [];
+      const seenNums = new Set<number>();
+      for (const cand of transformed) {
+        const num = Number(cand.matchNumber);
+        if (num > 0) {
+          if (seenNums.has(num)) continue;
+          seenNums.add(num);
         }
-      } catch (err) {
-        console.warn('Could not load live matches:', err);
-      } finally {
-        if (isMounted) setIsLoading(false);
+        deduped.push(cand);
       }
-    };
 
-    fetchTournamentData();
-    return () => {
-      isMounted = false;
-    };
-  }, [tournamentId, initialMatches]);
+      setMatches(deduped);
+    } catch (err) {
+      console.warn('[HomePage] Failed to fetch matches:', err);
+      if (propMatches && propMatches.length > 0) {
+        setMatches(propMatches);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [tournamentId, propMatches]);
+
+  useEffect(() => {
+    fetchSchedule();
+  }, [fetchSchedule]);
 
   // Find featured match: Prioritize LIVE match, otherwise first upcoming match, otherwise first match
   const featuredMatch =

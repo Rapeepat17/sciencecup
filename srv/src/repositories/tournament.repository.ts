@@ -95,9 +95,14 @@ export class TournamentRepository {
       .select()
       .single();
 
-    // Graceful fallback if logo column has not been migrated yet
-    if (error && (error.code === '42703' || error.message?.includes('logo'))) {
-      const { logo, ...rest } = payload;
+    // Graceful fallback if logo or bracket_data column has been removed/not migrated
+    if (
+      error &&
+      (error.code === '42703' ||
+        error.message?.includes('logo') ||
+        error.message?.includes('bracket_data'))
+    ) {
+      const { logo, bracket_data, ...rest } = payload;
       const fallbackResult = await supabase
         .from('tournaments')
         .update({ ...rest, updated_at: new Date().toISOString() })
@@ -105,7 +110,7 @@ export class TournamentRepository {
         .select()
         .single();
       if (!fallbackResult.error) {
-        return { ...(fallbackResult.data as Tournament), logo };
+        return { ...(fallbackResult.data as Tournament), logo, bracket_data };
       }
       error = fallbackResult.error;
     }

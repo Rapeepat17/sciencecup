@@ -78,6 +78,7 @@ export const CreateTournamentPage: React.FC = () => {
         logo: logo || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
+        knockoutStartingRound,
         status: 'ACTIVE',
       });
 

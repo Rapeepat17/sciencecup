@@ -110,8 +110,8 @@ export async function fetchTournamentsList(): Promise<TournamentItem[]> {
   try {
     const list = await tournamentService.getAll();
     if (Array.isArray(list)) {
-      return list.map((t: any) => ({
-        id: t.id,
+      const mapped = list.map((t: any) => ({
+        id: String(t.id),
         name: t.name || '',
         logo: t.logo || '',
         startDate: t.startDate || t.start_date || '',
@@ -124,6 +124,10 @@ export async function fetchTournamentsList(): Promise<TournamentItem[]> {
         createdAt: t.createdAt || t.created_at || Date.now(),
         updatedAt: t.updatedAt || t.updated_at || Date.now(),
       }));
+      try {
+        localStorage.setItem(TOURNAMENTS_INDEX_KEY, JSON.stringify(mapped));
+      } catch {}
+      return mapped;
     }
   } catch (err) {
     console.warn('[dbService] Backend tournaments list fetch failed:', err);
@@ -142,6 +146,7 @@ export async function createTournament(meta: {
   startDate?: string;
   endDate?: string;
   description?: string;
+  knockoutStartingRound?: 'r16' | 'qf' | 'sf' | 'final';
 }): Promise<TournamentItem> {
   // Call Backend API directly - Only Backend saves to database, no frontend local storage saving
   const res = await tournamentService.create({
@@ -151,7 +156,7 @@ export async function createTournament(meta: {
     logo: meta.logo || undefined,
     start_date: meta.startDate || undefined,
     end_date: meta.endDate || undefined,
-    knockout_starting_round: 'sf',
+    knockout_starting_round: meta.knockoutStartingRound || 'sf',
     is_user_portal_enabled: true,
   });
 
@@ -252,41 +257,119 @@ export async function fetchDatabase(
         groups[gName].push(t);
       }
 
-      const matches: Match[] = (matchesRes || []).map((m: any) => {
-        const team1 = teams.find((t) => String(t.id) === String(m.home_team_id)) || {
-          id: String(m.home_team_id),
-          name: 'ทีมเหย้า',
-          shortName: 'HOM',
-          logo: '',
-          players: [],
-        };
-        const team2 = teams.find((t) => String(t.id) === String(m.away_team_id)) || {
-          id: String(m.away_team_id),
-          name: 'ทีมเยือน',
-          shortName: 'AWY',
-          logo: '',
-          players: [],
-        };
+      const teamMap = new Map<string, any>();
+      for (const t of teams) {
+        teamMap.set(String(t.id), t);
+      }
+
+      const matches: Match[] = (matchesRes || []).map((m: any, idx: number) => {
+        const homeTeam = m.home_team_id ? teamMap.get(String(m.home_team_id)) : undefined;
+        const awayTeam = m.away_team_id ? teamMap.get(String(m.away_team_id)) : undefined;
+
+        const normalizedGroup = m.group_name
+          ? String(m.group_name).replace(/^Group\s*/i, '').trim()
+          : m.stage === 'knockout'
+          ? 'Knockout'
+          : 'A';
+
+        const rawStatus = String(m.status || 'SCHEDULED').toUpperCase();
+        const uiStatus =
+          rawStatus === 'LIVE'
+            ? 'LIVE'
+            : rawStatus === 'COMPLETED' || rawStatus === 'FT' || rawStatus === 'FINISHED'
+            ? 'FT'
+            : rawStatus === 'POSTPONED'
+            ? 'POSTPONED'
+            : 'UPCOMING';
+
+        const fallbackHomeName =
+          m.home_team_name ||
+          m.team1?.name ||
+          (m.home_team_id && String(m.home_team_id).trim() !== ''
+            ? String(m.home_team_id).trim()
+            : 'รอระบุทีม');
+
+        const fallbackAwayName =
+          m.away_team_name ||
+          m.team2?.name ||
+          (m.away_team_id && String(m.away_team_id).trim() !== ''
+            ? String(m.away_team_id).trim()
+            : 'รอระบุทีม');
+
+        const team1 = homeTeam
+          ? {
+              ...homeTeam,
+              name: homeTeam.name || fallbackHomeName,
+              logo: homeTeam.logo || m.home_team_logo || m.team1?.logo || '',
+            }
+          : {
+              id: String(m.home_team_id || ''),
+              name: fallbackHomeName,
+              nameEn: fallbackHomeName,
+              shortName:
+                m.team1?.shortName ||
+                fallbackHomeName.slice(0, 3).toUpperCase(),
+              logo: m.home_team_logo || m.team1?.logo || '',
+              players: [],
+            };
+
+        const team2 = awayTeam
+          ? {
+              ...awayTeam,
+              name: awayTeam.name || fallbackAwayName,
+              logo: awayTeam.logo || m.away_team_logo || m.team2?.logo || '',
+            }
+          : {
+              id: String(m.away_team_id || ''),
+              name: fallbackAwayName,
+              nameEn: fallbackAwayName,
+              shortName:
+                m.team2?.shortName ||
+                fallbackAwayName.slice(0, 3).toUpperCase(),
+              logo: m.away_team_logo || m.team2?.logo || '',
+              players: [],
+            };
 
         return {
           id: String(m.id),
           tournamentId,
+          matchNumber: m.match_number ?? idx + 1,
           matchday: m.matchday || 1,
-          round: m.round || (m.stage === 'knockout' ? 'รอบน็อคเอาท์' : 'รอบแบ่งกลุ่ม (Group Stage)'),
-          stage: m.stage || 'group',
-          group: m.group_name || 'Group A',
-          dateStr: m.match_date || '',
-          timeStr: m.match_time || '',
-          venue: m.pitch || 'สนามหลัก',
+          round:
+            m.round_name ||
+            m.round ||
+            (m.stage === 'knockout' ? 'รอบน็อคเอาท์' : 'รอบแบ่งกลุ่ม (Group Stage)'),
+          group: normalizedGroup,
+          dateStr: m.match_date || m.dateStr || 'TBD',
+          timeStr: m.match_time || m.timeStr || 'TBD',
+          venue: m.venue || m.pitch || 'สนาม 1',
           team1,
           team2,
-          score1: m.home_score !== null && m.home_score !== undefined ? Number(m.home_score) : 0,
-          score2: m.away_score !== null && m.away_score !== undefined ? Number(m.away_score) : 0,
-          penaltyScore1: m.home_penalty_score,
-          penaltyScore2: m.away_penalty_score,
-          status: m.status || 'SCHEDULED',
+          score1:
+            m.home_score !== null && m.home_score !== undefined
+              ? Number(m.home_score)
+              : 0,
+          score2:
+            m.away_score !== null && m.away_score !== undefined
+              ? Number(m.away_score)
+              : 0,
+          penaltyScore1: m.home_penalty_score ?? null,
+          penaltyScore2: m.away_penalty_score ?? null,
+          status: uiStatus as any,
         };
       });
+
+      // Deduplicate matches by matchNumber so no duplicate rows can ever appear
+      const dedupedMatches: Match[] = [];
+      const seenNums = new Set<number>();
+      for (const m of matches) {
+        const num = Number(m.matchNumber);
+        if (num > 0) {
+          if (seenNums.has(num)) continue;
+          seenNums.add(num);
+        }
+        dedupedMatches.push(m);
+      }
 
       const bracketData = bracketRes?.bracket_data || tourneyRes.bracket_data || {};
 
@@ -299,7 +382,7 @@ export async function fetchDatabase(
         description: tourneyRes.description || '',
         teams,
         groups,
-        matches,
+        matches: dedupedMatches,
         knockoutStartingRound: tourneyRes.knockout_starting_round || 'sf',
         r16Matches: bracketData.r16Matches || INITIAL_R16_MATCHES,
         qfMatches: bracketData.qfMatches || INITIAL_QF_MATCHES,

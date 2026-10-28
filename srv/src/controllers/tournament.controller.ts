@@ -104,6 +104,79 @@ export async function getGroups(req: Request, res: Response, next: NextFunction)
   }
 }
 
+export async function createGroup(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tournamentId } = req.params;
+    const { name } = req.body;
+    const group = await tournamentService.createGroup(tournamentId, name);
+    const response: ApiResponse = {
+      success: true,
+      data: group,
+      meta: {
+        timestamp: new Date().toISOString(),
+      },
+    };
+    res.status(201).json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function renameGroup(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tournamentId, groupId } = req.params;
+    const { oldName, newName } = req.body;
+    const group = await tournamentService.renameGroup(tournamentId, groupId, oldName, newName);
+    const response: ApiResponse = {
+      success: true,
+      data: group,
+      meta: {
+        timestamp: new Date().toISOString(),
+      },
+    };
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteGroup(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tournamentId, groupId } = req.params;
+    const { groupName } = req.query;
+    await tournamentService.deleteGroup(tournamentId, groupId, groupName as string | undefined);
+    const response: ApiResponse = {
+      success: true,
+      data: { message: `Group deleted successfully` },
+      meta: {
+        timestamp: new Date().toISOString(),
+      },
+    };
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateGroups(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tournamentId } = req.params;
+    const { groups, assignments } = req.body;
+    const updated = await tournamentService.updateGroups(tournamentId, { groups, assignments });
+    const response: ApiResponse = {
+      success: true,
+      data: updated,
+      meta: {
+        total: assignments ? assignments.length : 0,
+        timestamp: new Date().toISOString(),
+      },
+    };
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getBracket(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { tournamentId } = req.params;
@@ -128,6 +201,23 @@ export async function updateBracket(req: Request, res: Response, next: NextFunct
     const response: ApiResponse = {
       success: true,
       data: updated,
+      meta: {
+        timestamp: new Date().toISOString(),
+      },
+    };
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function autoSeedBracket(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tournamentId } = req.params;
+    const seeded = await tournamentService.autoSeedBracketFromStandings(tournamentId);
+    const response: ApiResponse = {
+      success: true,
+      data: seeded,
       meta: {
         timestamp: new Date().toISOString(),
       },

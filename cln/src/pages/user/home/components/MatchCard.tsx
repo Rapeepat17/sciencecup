@@ -15,12 +15,18 @@ export const MatchCard: React.FC<MatchCardProps> = ({
   const isLive = match.status === 'LIVE';
   const isFT = match.status === 'FT';
   const matchNum = match.matchNumber || 1;
-  const groupLabel = match.group
+  const isKnockout =
+    match.group === 'Knockout' ||
+    (match.round && !match.round.includes('รอบแบ่งกลุ่ม'));
+
+  const groupLabel = isKnockout
+    ? match.round || 'รอบน็อคเอาท์'
+    : match.group
     ? match.group.startsWith('กลุ่ม') || match.group.startsWith('สาย')
       ? match.group
       : `กลุ่ม ${match.group}`
     : 'รอบแบ่งกลุ่ม';
-  const venueLabel = match.venue || 'สนามหลัก';
+  const venueLabel = match.venue || 'สนาม 1';
 
   const t1Name = match.team1?.name || 'ทีมเหย้า';
   const t2Name = match.team2?.name || 'ทีมเยือน';

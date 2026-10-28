@@ -165,7 +165,7 @@ export const TournamentsPage: React.FC<TournamentsPageProps> = ({
             <TournamentCard
               key={tournament.id}
               tournament={tournament}
-              isCurrent={tournament.id === currentTournamentId}
+              isCurrent={String(tournament.id) === String(currentTournamentId)}
               onSelect={() => handleSelect(tournament.id)}
               onEdit={() => setEditingTournament(tournament)}
               onDelete={() => setDeletingTournament(tournament)}

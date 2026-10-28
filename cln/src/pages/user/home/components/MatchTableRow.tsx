@@ -13,8 +13,18 @@ export const MatchTableRow: React.FC<MatchTableRowProps> = ({
   onSelectMatch,
 }) => {
   const matchNum = match.matchNumber || 1;
-  const groupLabel = match.group ? `กลุ่ม ${match.group}` : 'รอบแบ่งกลุ่ม';
-  const venueLabel = match.venue || 'สนามหลัก';
+  const isKnockout =
+    match.group === 'Knockout' ||
+    (match.round && !match.round.includes('รอบแบ่งกลุ่ม'));
+
+  const groupLabel = isKnockout
+    ? match.round || 'รอบน็อคเอาท์'
+    : match.group
+    ? match.group.startsWith('กลุ่ม') || match.group.startsWith('สาย')
+      ? match.group
+      : `กลุ่ม ${match.group}`
+    : 'รอบแบ่งกลุ่ม';
+  const venueLabel = match.venue || 'สนาม 1';
   const isFinished = match.status === 'FT';
   const isLive = match.status === 'LIVE';
 
