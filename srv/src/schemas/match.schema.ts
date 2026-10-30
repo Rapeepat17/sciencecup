@@ -10,7 +10,7 @@ export const updateMatchScoreSchema = z.object({
   away_score: z.number().int().min(0).max(99).nullable().optional(),
   home_penalty_score: z.number().int().min(0).max(99).nullable().optional(),
   away_penalty_score: z.number().int().min(0).max(99).nullable().optional(),
-  status: z.enum(['SCHEDULED', 'UPCOMING', 'LIVE', 'COMPLETED', 'FT', 'POSTPONED']).optional(),
+  status: z.enum(['SCHEDULED', 'UPCOMING', 'LIVE', 'COMPLETED', 'FINISHED', 'FT', 'POSTPONED']).optional(),
   match_date: z.string().nullable().optional(),
   match_time: z.string().nullable().optional(),
   venue: z.string().nullable().optional(),
@@ -57,4 +57,29 @@ export const syncMatchItemSchema = z.object({
 
 export const syncMatchesSchema = z.object({
   matches: z.array(syncMatchItemSchema),
+});
+
+export const syncMatchGoalsSchema = z.object({
+  goals: z.array(
+    z.object({
+      team_id: z.union([z.string(), z.number()]).optional().nullable(),
+      player_id: z.string().optional().nullable(),
+      player_number: z.string().optional().nullable(),
+      player_name: z.string().optional().nullable(),
+      detail: z.string().optional().nullable(),
+    })
+  ),
+});
+
+export const syncMatchCardsSchema = z.object({
+  cards: z.array(
+    z.object({
+      team_id: z.union([z.string(), z.number()]).optional().nullable(),
+      player_id: z.string().optional().nullable(),
+      player_number: z.string().optional().nullable(),
+      player_name: z.string().optional().nullable(),
+      card_type: z.enum(['yellow_card', 'red_card']),
+      detail: z.string().optional().nullable(),
+    })
+  ),
 });

@@ -47,14 +47,14 @@ export interface Player {
 }
 
 export interface MatchEvent {
-  id: string;
+  id: string | number;
   tournament_id: string;
   match_id: string;
   team_id?: string | null;
   player_id?: string | null;
   player_number?: string | null;
   event_type: 'goal' | 'yellow_card' | 'red_card' | 'sub' | 'penalty';
-  minute: number;
+  minute?: number;
   extra_minute?: number;
   detail?: string | null;
   created_at?: string;
@@ -74,7 +74,7 @@ export interface Match {
   away_score?: number | null;
   home_penalty_score?: number | null;
   away_penalty_score?: number | null;
-  status: 'SCHEDULED' | 'UPCOMING' | 'LIVE' | 'COMPLETED' | 'FT' | 'POSTPONED';
+  status: 'SCHEDULED' | 'UPCOMING' | 'LIVE' | 'COMPLETED' | 'FINISHED' | 'FT' | 'POSTPONED';
   match_date?: string | null;
   match_time?: string | null;
   venue?: string | null;

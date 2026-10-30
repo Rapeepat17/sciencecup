@@ -5,6 +5,8 @@ import { TeamLogo } from '../../../../components/TeamLogo';
 import { KnockoutFilterRound } from './KnockoutFilterTabs';
 
 export interface BracketTreeProps {
+  tournamentName?: string;
+  startingRound?: 'qf' | 'sf' | 'final';
   qfMatches: BracketMatchup[];
   sfMatches: BracketMatchup[];
   finalMatch?: BracketMatchup | null;
@@ -13,49 +15,51 @@ export interface BracketTreeProps {
 }
 
 export const BracketTree: React.FC<BracketTreeProps> = ({
+  tournamentName,
+  startingRound = 'sf',
   qfMatches,
   sfMatches,
   finalMatch,
   selectedRound = 'all',
   onMatchClick,
 }) => {
-  // Fallback defaults matching screenshot
+  // Fallback defaults matching standard seeds
   const defaultQF: BracketMatchup[] = [
     {
       id: 'qf1',
       roundName: 'รอบ 8 ทีม (คู่ที่ 1)',
       date: '31 ต.ค. 2026',
-      time: '13:00 น.',
-      venue: 'สนามหลัก',
-      team1: { name: 'คิดถึงวิทยา', score: null },
-      team2: { name: 'อันดับ 2 สาย B', score: null },
+      time: '16:00 น.',
+      venue: 'สนาม 1',
+      team1: { name: 'A1', score: null },
+      team2: { name: 'B2', score: null },
     },
     {
       id: 'qf2',
       roundName: 'รอบ 8 ทีม (คู่ที่ 2)',
       date: '31 ต.ค. 2026',
-      time: '15:00 น.',
-      venue: 'สนามหลัก',
-      team1: { name: 'อันดับ 1 สาย C', score: null },
-      team2: { name: '3 ดีที่สุดอันดับ1', score: null },
+      time: '17:00 น.',
+      venue: 'สนาม 1',
+      team1: { name: 'B1', score: null },
+      team2: { name: 'A2', score: null },
     },
     {
       id: 'qf3',
       roundName: 'รอบ 8 ทีม (คู่ที่ 3)',
       date: '31 ต.ค. 2026',
-      time: '17:00 น.',
-      venue: 'สนามหลัก',
-      team1: { name: 'BABY SCI', score: null },
-      team2: { name: 'อันดับ 2 สาย C', score: null },
+      time: '18:00 น.',
+      venue: 'สนาม 1',
+      team1: { name: 'C1', score: null },
+      team2: { name: 'D2', score: null },
     },
     {
       id: 'qf4',
       roundName: 'รอบ 8 ทีม (คู่ที่ 4)',
       date: '31 ต.ค. 2026',
       time: '19:00 น.',
-      venue: 'สนามหลัก',
-      team1: { name: 'อันดับ 1 สาย B', score: null },
-      team2: { name: '3 ดีที่สุดอันดับ2', score: null },
+      venue: 'สนาม 1',
+      team1: { name: 'D1', score: null },
+      team2: { name: 'C2', score: null },
     },
   ];
 
@@ -64,19 +68,19 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
       id: 'sf1',
       roundName: 'รอบรองชนะเลิศ 1',
       date: '1 พ.ย. 2026',
-      time: '15:00 น.',
-      venue: 'สนามหลัก',
-      team1: { name: 'ทีมเหย้า', score: null },
-      team2: { name: 'ทีมเยือน', score: null },
+      time: '16:00 น.',
+      venue: 'สนาม 1',
+      team1: { name: 'ทีมชนะคู่ 16', score: null },
+      team2: { name: 'ทีมชนะคู่ 17', score: null },
     },
     {
       id: 'sf2',
       roundName: 'รอบรองชนะเลิศ 2',
       date: '1 พ.ย. 2026',
-      time: '18:00 น.',
-      venue: 'สนามหลัก',
-      team1: { name: 'ทีมเหย้า', score: null },
-      team2: { name: 'ทีมเยือน', score: null },
+      time: '17:00 น.',
+      venue: 'สนาม 1',
+      team1: { name: 'ทีมชนะคู่ 18', score: null },
+      team2: { name: 'ทีมชนะคู่ 19', score: null },
     },
   ];
 
@@ -85,9 +89,9 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
     roundName: 'นัดชิงชนะเลิศ',
     date: '2 พ.ย. 2026',
     time: '18:00 น.',
-    venue: 'สนามหลัก',
-    team1: { name: 'ทีมเหย้า', score: null },
-    team2: { name: 'ทีมเยือน', score: null },
+    venue: 'สนาม 1',
+    team1: { name: 'ทีมชนะคู่ 20', score: null },
+    team2: { name: 'ทีมชนะคู่ 21', score: null },
   };
 
   const qfList = qfMatches && qfMatches.length > 0 ? qfMatches : defaultQF;
@@ -171,13 +175,80 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
     );
   };
 
-  const showQF = selectedRound === 'all' || selectedRound === 'qf';
-  const showSF = selectedRound === 'all' || selectedRound === 'sf';
+  const showQF =
+    startingRound === 'qf' &&
+    (selectedRound === 'all' || selectedRound === 'qf');
+
+  const showSF =
+    (startingRound === 'qf' || startingRound === 'sf') &&
+    (selectedRound === 'all' || selectedRound === 'sf');
+
   const showFinal = selectedRound === 'all' || selectedRound === 'final';
+
+  // Single round filter view
+  if (selectedRound !== 'all') {
+    if (selectedRound === 'qf' && startingRound === 'qf') {
+      return (
+        <div className="w-full bg-white rounded-2xl border border-[#efeded] p-4 sm:p-8 shadow-2xs">
+          <div className="text-center pb-3 mb-5 border-b border-[#f5f3f3]">
+            <h3 className="text-sm font-bold text-[#1b1c1c]">รอบ 8 ทีม (QF)</h3>
+            <p className="text-xs text-[#7d7765]">4 แมตช์</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {qfList.slice(0, 4).map((m) => renderMatchCard(m))}
+          </div>
+        </div>
+      );
+    }
+
+    if (selectedRound === 'sf' && (startingRound === 'qf' || startingRound === 'sf')) {
+      return (
+        <div className="w-full bg-white rounded-2xl border border-[#efeded] p-4 sm:p-8 shadow-2xs">
+          <div className="text-center pb-3 mb-5 border-b border-[#f5f3f3]">
+            <h3 className="text-sm font-bold text-[#1b1c1c]">รอบรองชนะเลิศ (SF)</h3>
+            <p className="text-xs text-[#7d7765]">2 แมตช์</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {sfList.slice(0, 2).map((m) => renderMatchCard(m))}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-full bg-white rounded-2xl border border-[#efeded] p-4 sm:p-8 shadow-2xs">
+        <div className="max-w-md mx-auto flex flex-col justify-center gap-4">
+          <div className="text-center">
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold bg-[#fef9c3] text-[#854d0e] border border-[#fef08a] shadow-2xs">
+              <Trophy className="w-3.5 h-3.5 text-amber-600" />
+              ชิงชนะเลิศ (GRAND FINAL)
+            </span>
+            <p className="text-xs text-[#7d7765] mt-1">
+              ชิงถ้วย {tournamentName || 'การแข่งขัน'}
+            </p>
+          </div>
+          <div className="relative pt-4">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 w-9 h-9 rounded-full bg-[#fde047] border-2 border-white shadow-md flex items-center justify-center text-[#786607]">
+              <Trophy className="w-5 h-5 fill-amber-500 text-amber-600" />
+            </div>
+            {renderMatchCard(final, true)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Full Bracket Tree
+  const gridColsClass =
+    startingRound === 'qf'
+      ? 'grid-cols-3 min-w-[850px]'
+      : startingRound === 'sf'
+      ? 'grid-cols-2 min-w-[600px]'
+      : 'grid-cols-1 max-w-md mx-auto';
 
   return (
     <div className="w-full bg-white rounded-2xl border border-[#efeded] p-4 sm:p-8 shadow-2xs overflow-x-auto">
-      <div className="min-w-[850px] grid grid-cols-3 gap-8 items-center relative">
+      <div className={`${gridColsClass} grid gap-8 items-center relative`}>
         {/* =========================================
             COLUMN 1: รอบ 8 ทีม (QF)
            ========================================= */}
@@ -224,7 +295,9 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
                 <Trophy className="w-3.5 h-3.5 text-amber-600" />
                 ชิงชนะเลิศ (GRAND FINAL)
               </span>
-              <p className="text-xs text-[#7d7765] mt-1">ชิงถ้วย Science Cup</p>
+              <p className="text-xs text-[#7d7765] mt-1">
+                ชิงถ้วย {tournamentName || 'การแข่งขัน'}
+              </p>
             </div>
 
             {/* Floating Trophy Icon Badge */}

@@ -210,11 +210,11 @@ export class TournamentService {
   }
 
   private buildDefaultBracketData(existing?: Record<string, any>): Record<string, any> {
-    const emptyTeam = () => ({
+    const emptyTeam = (fallbackName = '-') => ({
       id: null,
-      name: '-',
-      seedCode: null,
-      shortName: '',
+      name: fallbackName,
+      seedCode: /^[A-Z]\d+$/i.test(fallbackName) ? fallbackName : null,
+      shortName: /^[A-Z]\d+$/i.test(fallbackName) ? fallbackName : '',
       logo: '',
       score: null,
       penaltyScore: null,
@@ -232,8 +232,8 @@ export class TournamentService {
         date: 'TBD',
         time: '16:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: emptyTeam('A1'),
+        team2: emptyTeam('B2'),
         winner: null,
       },
       {
@@ -247,8 +247,8 @@ export class TournamentService {
         date: 'TBD',
         time: '17:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: emptyTeam('B1'),
+        team2: emptyTeam('A2'),
         winner: null,
       },
       {
@@ -262,8 +262,8 @@ export class TournamentService {
         date: 'TBD',
         time: '18:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: emptyTeam('C1'),
+        team2: emptyTeam('D2'),
         winner: null,
       },
       {
@@ -277,8 +277,8 @@ export class TournamentService {
         date: 'TBD',
         time: '19:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: emptyTeam('D1'),
+        team2: emptyTeam('C2'),
         winner: null,
       },
     ];
@@ -295,8 +295,8 @@ export class TournamentService {
         date: 'TBD',
         time: '16:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: emptyTeam('A1'),
+        team2: emptyTeam('B2'),
         winner: null,
       },
       {
@@ -310,8 +310,8 @@ export class TournamentService {
         date: 'TBD',
         time: '17:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: emptyTeam('B1'),
+        team2: emptyTeam('A2'),
         winner: null,
       },
     ];
@@ -327,8 +327,8 @@ export class TournamentService {
       date: 'TBD',
       time: '16:00',
       venue: 'สนาม 1',
-      team1: emptyTeam(),
-      team2: emptyTeam(),
+      team1: emptyTeam('ทีมแพ้ รอบรองฯ 1'),
+      team2: emptyTeam('ทีมแพ้ รอบรองฯ 2'),
       winner: null,
     };
 
@@ -343,9 +343,45 @@ export class TournamentService {
       date: 'TBD',
       time: '18:00',
       venue: 'สนาม 1',
-      team1: emptyTeam(),
-      team2: emptyTeam(),
+      team1: emptyTeam('ทีมชนะ รอบรองฯ 1'),
+      team2: emptyTeam('ทีมชนะ รอบรองฯ 2'),
       winner: null,
+    };
+
+    const mergeTeam = (defTeam: any, incTeam?: any) => {
+      if (!incTeam || typeof incTeam !== 'object') return defTeam;
+      const incName =
+        incTeam.name !== undefined && incTeam.name !== null
+          ? String(incTeam.name).trim()
+          : '';
+      const isCleared =
+        incName === '-' ||
+        (incTeam.seedCode === null && !incTeam.id && (!incName || incName === '-'));
+      if (isCleared) {
+        return {
+          id: null,
+          name: '-',
+          seedCode: null,
+          shortName: '',
+          logo: '',
+          score: null,
+          penaltyScore: null,
+        };
+      }
+      const hasRealName = incName && incName !== '-' && incName !== 'TBD';
+      if (incTeam.id || hasRealName || incTeam.seedCode) {
+        return {
+          ...defTeam,
+          ...incTeam,
+          name: incName || incTeam.seedCode || defTeam.name,
+          seedCode:
+            incTeam.seedCode ||
+            (hasRealName && /^([A-Z])(\d+)$/i.test(incName)
+              ? incName.toUpperCase()
+              : null),
+        };
+      }
+      return defTeam;
     };
 
     const mergeSlot = (def: any, incoming?: any) => {
@@ -356,6 +392,8 @@ export class TournamentService {
         incoming.venue === 'สนามหลัก (รอบชิง)' || incoming.venue === 'สนามหลัก'
           ? def.venue
           : incoming.venue || def.venue;
+      const t1 = mergeTeam(def.team1, incoming.team1);
+      const t2 = mergeTeam(def.team2, incoming.team2);
       return {
         ...def,
         ...incoming,
@@ -363,8 +401,22 @@ export class TournamentService {
         venue: cleanVenue,
         roundName: def.roundName,
         slotLabel: incoming.slotLabel || def.slotLabel,
-        team1: { ...def.team1, ...(incoming.team1 || {}) },
-        team2: { ...def.team2, ...(incoming.team2 || {}) },
+        seed1Label:
+          t1?.name === '-'
+            ? '-'
+            : t1?.seedCode ||
+              (t1?.name ? t1.name : null) ||
+              incoming.seed1Label ||
+              def.seed1Label,
+        seed2Label:
+          t2?.name === '-'
+            ? '-'
+            : t2?.seedCode ||
+              (t2?.name ? t2.name : null) ||
+              incoming.seed2Label ||
+              def.seed2Label,
+        team1: t1,
+        team2: t2,
       };
     };
 
@@ -385,24 +437,219 @@ export class TournamentService {
     startingRound: string,
     baseMatchNumber: number
   ): void {
+    const assignNum = (slot: any, defaultNum: number) => {
+      if (!slot) return;
+      if (!slot.matchId || !slot.matchNumber) {
+        slot.matchNumber = defaultNum;
+      }
+    };
+
     if (startingRound === 'qf') {
       bracketData.qfMatches.forEach((m: any, idx: number) => {
-        m.matchNumber = baseMatchNumber + 1 + idx;
+        assignNum(m, baseMatchNumber + 1 + idx);
       });
       bracketData.sfMatches.forEach((m: any, idx: number) => {
-        m.matchNumber = baseMatchNumber + 5 + idx;
+        assignNum(m, baseMatchNumber + 5 + idx);
       });
-      bracketData.thirdPlaceMatch.matchNumber = baseMatchNumber + 7;
-      bracketData.finalMatch.matchNumber = baseMatchNumber + 8;
+      assignNum(bracketData.thirdPlaceMatch, baseMatchNumber + 7);
+      assignNum(bracketData.finalMatch, baseMatchNumber + 8);
     } else if (startingRound === 'sf') {
       bracketData.sfMatches.forEach((m: any, idx: number) => {
-        m.matchNumber = baseMatchNumber + 1 + idx;
+        assignNum(m, baseMatchNumber + 1 + idx);
       });
-      bracketData.thirdPlaceMatch.matchNumber = baseMatchNumber + 3;
-      bracketData.finalMatch.matchNumber = baseMatchNumber + 4;
+      assignNum(bracketData.thirdPlaceMatch, baseMatchNumber + 3);
+      assignNum(bracketData.finalMatch, baseMatchNumber + 4);
     } else {
-      bracketData.finalMatch.matchNumber = baseMatchNumber + 1;
+      assignNum(bracketData.finalMatch, baseMatchNumber + 1);
     }
+  }
+
+  private normalizeGroupLetter(raw?: string | null): string {
+    if (!raw) return '';
+    return String(raw)
+      .replace(/^(กลุ่ม|สาย|Group)\s*/i, '')
+      .trim()
+      .toUpperCase();
+  }
+
+  private async buildStandingsLookup(id: string): Promise<{
+    groupsMap: Record<string, any[]>;
+    groupKeys: string[];
+    standingsByLetter: Map<string, any[]>;
+    seedByTeamId: Map<string, string>;
+    resolveBySeed: (seedCode?: string | null) => any | undefined;
+  }> {
+    const standingsByLetter = new Map<string, any[]>();
+    const seedByTeamId = new Map<string, string>();
+    let groupsMap: Record<string, any[]> = {};
+    let groupKeys: string[] = [];
+
+    try {
+      const { matchService } = await import('./match.service.ts');
+      const standingsOverview = await matchService.getGroupStandings(id);
+      groupsMap = standingsOverview.groups || {};
+      groupKeys = Object.keys(groupsMap);
+
+      for (const key of groupKeys) {
+        const letter = this.normalizeGroupLetter(key);
+        if (!letter) continue;
+        const rows = groupsMap[key] || [];
+        const existing = standingsByLetter.get(letter) || [];
+        if (rows.length > 0 || existing.length === 0) {
+          standingsByLetter.set(letter, rows);
+        }
+      }
+
+      for (const [letter, rows] of standingsByLetter.entries()) {
+        rows.forEach((row, idx) => {
+          if (row?.teamId) {
+            seedByTeamId.set(String(row.teamId), `${letter}${idx + 1}`);
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('[buildStandingsLookup] Notice:', err);
+    }
+
+    const resolveBySeed = (seedCode?: string | null) => {
+      if (!seedCode) return undefined;
+      const match = String(seedCode).trim().match(/^([A-Z])(\d+)$/i);
+      if (!match) return undefined;
+      const letter = match[1].toUpperCase();
+      const rankIdx = Math.max(0, parseInt(match[2], 10) - 1);
+      const groupRows = standingsByLetter.get(letter);
+      return groupRows ? groupRows[rankIdx] : undefined;
+    };
+
+    return {
+      groupsMap,
+      groupKeys,
+      standingsByLetter,
+      seedByTeamId,
+      resolveBySeed,
+    };
+  }
+
+  private parseSlotTeamFromDbValue(
+    rawVal: any,
+    teamById: Map<string, any>,
+    teamByName: Map<string, any>,
+    seedByTeamId: Map<string, string>,
+    fallbackSeedCode?: string | null
+  ): any {
+    const val =
+      rawVal !== undefined && rawVal !== null ? String(rawVal).trim() : '';
+
+    if (!val || val === '-' || val === 'TBD' || val === 'รอระบุทีม') {
+      return {
+        id: null,
+        name: '-',
+        seedCode: null,
+        shortName: '',
+        logo: '',
+        score: null,
+        penaltyScore: null,
+      };
+    }
+
+    if (/^[A-Z]\d+$/i.test(val)) {
+      const seed = val.toUpperCase();
+      return {
+        id: null,
+        name: seed,
+        seedCode: seed,
+        shortName: seed,
+        logo: '',
+        score: null,
+        penaltyScore: null,
+      };
+    }
+
+    if (/^(คู่ชนะ|คู่แพ้|ผู้ชนะ|ผู้แพ้|ทีมชนะ|ทีมแพ้)\s*/i.test(val)) {
+      return {
+        id: null,
+        name: val,
+        seedCode: null,
+        shortName: '',
+        logo: '',
+        score: null,
+        penaltyScore: null,
+      };
+    }
+
+    const matched = teamById.get(val) || teamByName.get(val.toLowerCase());
+    if (matched) {
+      const inferredSeed =
+        seedByTeamId.get(String(matched.id)) ||
+        (fallbackSeedCode && /^[A-Z]\d+$/i.test(fallbackSeedCode)
+          ? fallbackSeedCode.toUpperCase()
+          : null);
+      return {
+        id: String(matched.id),
+        name: matched.name,
+        seedCode: inferredSeed,
+        shortName: matched.short_name || matched.name.slice(0, 3).toUpperCase(),
+        logo: (matched as any).logo_url || matched.logo || '',
+        score: null,
+        penaltyScore: null,
+      };
+    }
+
+    return {
+      id: null,
+      name: val,
+      seedCode: null,
+      shortName: val.slice(0, 3).toUpperCase(),
+      logo: '',
+      score: null,
+      penaltyScore: null,
+    };
+  }
+
+  private findDbMatchForSlot(
+    slot: any,
+    roundIdx: number,
+    knockoutMatches: any[],
+    usedMatchIds?: Set<string>
+  ): any | undefined {
+    if (!slot || !Array.isArray(knockoutMatches) || knockoutMatches.length === 0) {
+      return undefined;
+    }
+
+    const isAvailable = (km: any) =>
+      !usedMatchIds || !usedMatchIds.has(String(km.id));
+
+    const slotRound = String(slot.roundName || '').trim();
+
+    if (slot.matchId) {
+      const byId = knockoutMatches.find(
+        (km) => isAvailable(km) && String(km.id) === String(slot.matchId)
+      );
+      if (byId) return byId;
+    }
+
+    const byNumAndRound = knockoutMatches.find(
+      (km) =>
+        isAvailable(km) &&
+        Number(km.match_number) === Number(slot.matchNumber) &&
+        String(km.round_name || '').trim() === slotRound
+    );
+    if (byNumAndRound) return byNumAndRound;
+
+    const sameRoundMatches = knockoutMatches
+      .filter((km) => String(km.round_name || '').trim() === slotRound)
+      .sort(
+        (a, b) =>
+          (Number(a.match_number) || 0) - (Number(b.match_number) || 0) ||
+          String(a.id).localeCompare(String(b.id))
+      );
+
+    const byRoundIndex = sameRoundMatches[roundIdx];
+    if (byRoundIndex && isAvailable(byRoundIndex)) {
+      return byRoundIndex;
+    }
+
+    return undefined;
   }
 
   private buildGroupSeeds(
@@ -458,7 +705,7 @@ export class TournamentService {
     if (!name) return true;
     const trimmed = String(name).trim();
     if (!trimmed || trimmed === '-' || trimmed === 'TBD') return true;
-    if (/^(คู่ชนะ|คู่แพ้|ผู้ชนะ|ผู้แพ้|ทีมชนะ|ทีมแพ้)\s*\d+/i.test(trimmed)) {
+    if (/^(คู่ชนะ|คู่แพ้|ผู้ชนะ|ผู้แพ้|ทีมชนะ|ทีมแพ้)\s*/i.test(trimmed)) {
       return true;
     }
     return false;
@@ -515,57 +762,57 @@ export class TournamentService {
     const makePlaceholderTeam = (label: string) => ({
       id: null,
       name: label,
-      seedCode: null,
-      shortName: '',
+      seedCode: /^[A-Z]\d+$/i.test(label) ? label : null,
+      shortName: /^[A-Z]\d+$/i.test(label) ? label : '',
       logo: '',
       score: null,
       penaltyScore: null,
     });
 
-    const makeEmptyTeam = () => makePlaceholderTeam('-');
-
-    const getWinnerOrPlaceholder = (feederSlot: any) => {
+    const getWinnerOrPlaceholder = (feederSlot: any, defaultFallback = '-') => {
       const winnerSide = this.resolveSlotWinnerSide(feederSlot);
-      if (winnerSide === 1) {
+      if (winnerSide === 1 && feederSlot.team1?.name && !this.isPlaceholderSlotName(feederSlot.team1?.name)) {
         return {
           ...feederSlot.team1,
           score: null,
           penaltyScore: null,
         };
       }
-      if (winnerSide === 2) {
+      if (winnerSide === 2 && feederSlot.team2?.name && !this.isPlaceholderSlotName(feederSlot.team2?.name)) {
         return {
           ...feederSlot.team2,
           score: null,
           penaltyScore: null,
         };
       }
-      if (this.hasFeederMatchConfigured(feederSlot)) {
-        return makePlaceholderTeam(`คู่ชนะ ${feederSlot.matchNumber}`);
+      const matchNum = feederSlot?.matchNumber;
+      if (matchNum) {
+        return makePlaceholderTeam(`ทีมชนะคู่ ${matchNum}`);
       }
-      return makeEmptyTeam();
+      return makePlaceholderTeam(defaultFallback);
     };
 
-    const getLoserOrPlaceholder = (feederSlot: any) => {
+    const getLoserOrPlaceholder = (feederSlot: any, defaultFallback = '-') => {
       const winnerSide = this.resolveSlotWinnerSide(feederSlot);
-      if (winnerSide === 1 && !this.isPlaceholderSlotName(feederSlot.team2?.name)) {
+      if (winnerSide === 1 && feederSlot.team2?.name && !this.isPlaceholderSlotName(feederSlot.team2?.name)) {
         return {
           ...feederSlot.team2,
           score: null,
           penaltyScore: null,
         };
       }
-      if (winnerSide === 2 && !this.isPlaceholderSlotName(feederSlot.team1?.name)) {
+      if (winnerSide === 2 && feederSlot.team1?.name && !this.isPlaceholderSlotName(feederSlot.team1?.name)) {
         return {
           ...feederSlot.team1,
           score: null,
           penaltyScore: null,
         };
       }
-      if (this.hasFeederMatchConfigured(feederSlot)) {
-        return makePlaceholderTeam(`คู่แพ้ ${feederSlot.matchNumber}`);
+      const matchNum = feederSlot?.matchNumber;
+      if (matchNum) {
+        return makePlaceholderTeam(`ทีมแพ้คู่ ${matchNum}`);
       }
-      return makeEmptyTeam();
+      return makePlaceholderTeam(defaultFallback);
     };
 
     // 1. Advance QF -> SF (Only when startingRound === 'qf')
@@ -574,10 +821,10 @@ export class TournamentService {
       Array.isArray(next.qfMatches) &&
       next.qfMatches.length === 4
     ) {
-      next.sfMatches[0].team1 = getWinnerOrPlaceholder(next.qfMatches[0]);
-      next.sfMatches[0].team2 = getWinnerOrPlaceholder(next.qfMatches[1]);
-      next.sfMatches[1].team1 = getWinnerOrPlaceholder(next.qfMatches[2]);
-      next.sfMatches[1].team2 = getWinnerOrPlaceholder(next.qfMatches[3]);
+      next.sfMatches[0].team1 = getWinnerOrPlaceholder(next.qfMatches[0], 'ทีมชนะคู่ 16');
+      next.sfMatches[0].team2 = getWinnerOrPlaceholder(next.qfMatches[1], 'ทีมชนะคู่ 17');
+      next.sfMatches[1].team1 = getWinnerOrPlaceholder(next.qfMatches[2], 'ทีมชนะคู่ 18');
+      next.sfMatches[1].team2 = getWinnerOrPlaceholder(next.qfMatches[3], 'ทีมชนะคู่ 19');
     }
 
     // 2. Advance SF -> Final & Third Place (When startingRound === 'qf' or 'sf')
@@ -586,10 +833,10 @@ export class TournamentService {
       Array.isArray(next.sfMatches) &&
       next.sfMatches.length === 2
     ) {
-      next.finalMatch.team1 = getWinnerOrPlaceholder(next.sfMatches[0]);
-      next.finalMatch.team2 = getWinnerOrPlaceholder(next.sfMatches[1]);
-      next.thirdPlaceMatch.team1 = getLoserOrPlaceholder(next.sfMatches[0]);
-      next.thirdPlaceMatch.team2 = getLoserOrPlaceholder(next.sfMatches[1]);
+      next.finalMatch.team1 = getWinnerOrPlaceholder(next.sfMatches[0], 'ทีมชนะคู่ 20');
+      next.finalMatch.team2 = getWinnerOrPlaceholder(next.sfMatches[1], 'ทีมชนะคู่ 21');
+      next.thirdPlaceMatch.team1 = getLoserOrPlaceholder(next.sfMatches[0], 'ทีมแพ้คู่ 20');
+      next.thirdPlaceMatch.team2 = getLoserOrPlaceholder(next.sfMatches[1], 'ทีมแพ้คู่ 21');
     }
 
     return next;
@@ -601,10 +848,11 @@ export class TournamentService {
     const { matchRepository } = await import('../repositories/match.repository.ts');
     const { groupRepository } = await import('../repositories/group.repository.ts');
 
-    const [teams, allMatches, groups] = await Promise.all([
+    const [teams, allMatches, groups, standingsLookup] = await Promise.all([
       teamRepository.findByTournament(id),
       matchRepository.findByTournament(id),
       groupRepository.findByTournament(id),
+      this.buildStandingsLookup(id),
     ]);
 
     const teamById = new Map<string, any>();
@@ -638,6 +886,7 @@ export class TournamentService {
           shortName: '',
           logo: '',
           score: null,
+          penaltyScore: null,
         };
       }
       const matched =
@@ -651,6 +900,10 @@ export class TournamentService {
           ...slotTeam,
           id: String(matched.id),
           name: matched.name,
+          seedCode:
+            slotTeam.seedCode ||
+            standingsLookup.seedByTeamId.get(String(matched.id)) ||
+            null,
           shortName: matched.short_name || matched.name.slice(0, 3).toUpperCase(),
           logo: (matched as any).logo_url || matched.logo || '',
         };
@@ -658,28 +911,44 @@ export class TournamentService {
       return slotTeam;
     };
 
-    const enrichMatchup = (m: any) => {
-      const t1 = enrichTeamSlot(m.team1);
-      const t2 = enrichTeamSlot(m.team2);
+    const usedDbMatchIds = new Set<string>();
 
-      // Sync latest date/time/venue/score if a matching knockout match exists in public.matches
-      const dbMatch = knockoutMatches.find(
-        (km) =>
-          (m.matchId && String(km.id) === String(m.matchId)) ||
-          (Number(km.match_number) === Number(m.matchNumber) &&
-            km.round_name === m.roundName) ||
-          (km.round_name === m.roundName &&
-            t1.id &&
-            t2.id &&
-            String(km.home_team_id) === String(t1.id) &&
-            String(km.away_team_id) === String(t2.id))
+    const enrichMatchup = (m: any, roundIdx: number) => {
+      const dbMatch = this.findDbMatchForSlot(
+        m,
+        roundIdx,
+        knockoutMatches,
+        usedDbMatchIds
       );
+
+      if (dbMatch) {
+        usedDbMatchIds.add(String(dbMatch.id));
+      }
+
+      const t1 = dbMatch
+        ? this.parseSlotTeamFromDbValue(
+            dbMatch.home_team_id,
+            teamById,
+            teamByName,
+            standingsLookup.seedByTeamId
+          )
+        : enrichTeamSlot(m.team1);
+
+      const t2 = dbMatch
+        ? this.parseSlotTeamFromDbValue(
+            dbMatch.away_team_id,
+            teamById,
+            teamByName,
+            standingsLookup.seedByTeamId
+          )
+        : enrichTeamSlot(m.team2);
 
       const dbStatus = String(dbMatch?.status || '').toUpperCase();
       const hasPlayedScore = ['LIVE', 'FINISHED', 'COMPLETED', 'FT'].includes(dbStatus);
 
       return {
         ...m,
+        hasDbMatch: Boolean(dbMatch),
         matchId: dbMatch ? String(dbMatch.id) : m.matchId || null,
         matchNumber: dbMatch?.match_number
           ? Number(dbMatch.match_number)
@@ -688,16 +957,28 @@ export class TournamentService {
         date: dbMatch?.match_date || m.date || 'TBD',
         time: dbMatch?.match_time || m.time || '16:00',
         venue: dbMatch?.venue || m.venue || 'สนามหลัก',
+        seed1Label:
+          t1?.name === '-'
+            ? '-'
+            : t1?.seedCode || (t1?.name ? t1.name : m.seed1Label || '-'),
+        seed2Label:
+          t2?.name === '-'
+            ? '-'
+            : t2?.seedCode || (t2?.name ? t2.name : m.seed2Label || '-'),
         team1: {
           ...t1,
-          score: hasPlayedScore ? (dbMatch?.home_score ?? t1.score ?? null) : (t1.score ?? null),
+          score: hasPlayedScore
+            ? (dbMatch?.home_score ?? t1.score ?? null)
+            : (t1.score ?? null),
           penaltyScore: hasPlayedScore
             ? (dbMatch?.home_penalty_score ?? t1.penaltyScore ?? null)
             : (t1.penaltyScore ?? null),
         },
         team2: {
           ...t2,
-          score: hasPlayedScore ? (dbMatch?.away_score ?? t2.score ?? null) : (t2.score ?? null),
+          score: hasPlayedScore
+            ? (dbMatch?.away_score ?? t2.score ?? null)
+            : (t2.score ?? null),
           penaltyScore: hasPlayedScore
             ? (dbMatch?.away_penalty_score ?? t2.penaltyScore ?? null)
             : (t2.penaltyScore ?? null),
@@ -705,10 +986,149 @@ export class TournamentService {
       };
     };
 
-    bracketData.qfMatches = bracketData.qfMatches.map(enrichMatchup);
-    bracketData.sfMatches = bracketData.sfMatches.map(enrichMatchup);
-    bracketData.thirdPlaceMatch = enrichMatchup(bracketData.thirdPlaceMatch);
-    bracketData.finalMatch = enrichMatchup(bracketData.finalMatch);
+    bracketData.qfMatches = bracketData.qfMatches.map((m: any, idx: number) =>
+      enrichMatchup(m, idx)
+    );
+    bracketData.sfMatches = bracketData.sfMatches.map((m: any, idx: number) =>
+      enrichMatchup(m, idx)
+    );
+    bracketData.thirdPlaceMatch = enrichMatchup(bracketData.thirdPlaceMatch, 0);
+    bracketData.finalMatch = enrichMatchup(bracketData.finalMatch, 0);
+
+    // Automatically resolve seed codes (A1, B2, A3, etc.) from group standings when matches have been played
+    if (!tourney.is_bracket_locked) {
+      const applySeedToSlot = (
+        slotTeam: any,
+        defaultSeed: string,
+        hasDbMatch: boolean
+      ) => {
+        if (!slotTeam) {
+          return {
+            id: null,
+            name: '-',
+            seedCode: null,
+            shortName: '',
+            logo: '',
+            score: null,
+            penaltyScore: null,
+          };
+        }
+        const incName =
+          slotTeam.name !== undefined && slotTeam.name !== null
+            ? String(slotTeam.name).trim()
+            : '';
+        const isCleared =
+          incName === '-' ||
+          (slotTeam.seedCode === null && !slotTeam.id && (!incName || incName === '-'));
+        if (isCleared) {
+          return {
+            id: null,
+            name: '-',
+            seedCode: null,
+            shortName: '',
+            logo: '',
+            score: null,
+            penaltyScore: null,
+          };
+        }
+
+        const seed =
+          slotTeam?.seedCode ||
+          (incName && /^([A-Z])(\d+)$/i.test(incName)
+            ? incName.toUpperCase()
+            : null) ||
+          (!hasDbMatch && knockoutMatches.length === 0 ? defaultSeed : null);
+
+        if (seed) {
+          const row = standingsLookup.resolveBySeed(seed);
+          if (row && row.teamName && row.played > 0) {
+            const matched = teamById.get(String(row.teamId));
+            return {
+              ...slotTeam,
+              id: String(row.teamId),
+              name: row.teamName,
+              seedCode: seed,
+              shortName: row.shortName || row.teamName.slice(0, 3).toUpperCase(),
+              logo: (matched as any)?.logo_url || matched?.logo || row.teamLogo || '',
+            };
+          }
+          if (!slotTeam.id) {
+            return {
+              ...slotTeam,
+              id: null,
+              name: seed,
+              seedCode: seed,
+              shortName: seed,
+              logo: '',
+            };
+          }
+        }
+        return slotTeam;
+      };
+
+      if (startingRound === 'qf') {
+        const qfPairs = [
+          ['A1', 'B2'],
+          ['B1', 'A2'],
+          ['C1', 'D2'],
+          ['D1', 'C2'],
+        ];
+        bracketData.qfMatches.forEach((m: any, idx: number) => {
+          const [s1, s2] = qfPairs[idx] || ['A1', 'B2'];
+          m.team1 = applySeedToSlot(m.team1, s1, Boolean(m.hasDbMatch));
+          m.team2 = applySeedToSlot(m.team2, s2, Boolean(m.hasDbMatch));
+          m.seed1Label =
+            m.team1?.name === '-'
+              ? '-'
+              : m.team1?.seedCode || m.team1?.name || '-';
+          m.seed2Label =
+            m.team2?.name === '-'
+              ? '-'
+              : m.team2?.seedCode || m.team2?.name || '-';
+        });
+      } else if (startingRound === 'sf') {
+        const sfPairs = [
+          ['A1', 'B2'],
+          ['B1', 'A2'],
+        ];
+        bracketData.sfMatches.forEach((m: any, idx: number) => {
+          const [s1, s2] = sfPairs[idx] || ['A1', 'B2'];
+          m.team1 = applySeedToSlot(m.team1, s1, Boolean(m.hasDbMatch));
+          m.team2 = applySeedToSlot(m.team2, s2, Boolean(m.hasDbMatch));
+          m.seed1Label =
+            m.team1?.name === '-'
+              ? '-'
+              : m.team1?.seedCode || m.team1?.name || '-';
+          m.seed2Label =
+            m.team2?.name === '-'
+              ? '-'
+              : m.team2?.seedCode || m.team2?.name || '-';
+        });
+      } else if (startingRound === 'final') {
+        bracketData.finalMatch.team1 = applySeedToSlot(
+          bracketData.finalMatch.team1,
+          'A1',
+          Boolean(bracketData.finalMatch.hasDbMatch)
+        );
+        bracketData.finalMatch.team2 = applySeedToSlot(
+          bracketData.finalMatch.team2,
+          'B1',
+          Boolean(bracketData.finalMatch.hasDbMatch)
+        );
+        bracketData.finalMatch.seed1Label =
+          bracketData.finalMatch.team1?.name === '-'
+            ? '-'
+            : bracketData.finalMatch.team1?.seedCode ||
+              bracketData.finalMatch.team1?.name ||
+              '-';
+        bracketData.finalMatch.seed2Label =
+          bracketData.finalMatch.team2?.name === '-'
+            ? '-'
+            : bracketData.finalMatch.team2?.seedCode ||
+              bracketData.finalMatch.team2?.name ||
+              '-';
+      }
+    }
 
     const resolvedBracketData = this.advanceBracketWinners(
       bracketData,
@@ -718,31 +1138,13 @@ export class TournamentService {
 
     const groupSeeds = this.buildGroupSeeds(groups, teams);
 
-    const activeBracketSlots: any[] =
-      startingRound === 'qf'
-        ? [
-            ...resolvedBracketData.qfMatches,
-            ...resolvedBracketData.sfMatches,
-            resolvedBracketData.thirdPlaceMatch,
-            resolvedBracketData.finalMatch,
-          ]
-        : startingRound === 'final'
-        ? [resolvedBracketData.finalMatch]
-        : [
-            ...resolvedBracketData.sfMatches,
-            resolvedBracketData.thirdPlaceMatch,
-            resolvedBracketData.finalMatch,
-          ];
-
-    const configuredSlotsCount = activeBracketSlots.filter((s) =>
-      this.hasFeederMatchConfigured(s)
-    ).length;
+    const hasKnockoutInDb = knockoutMatches.length > 0;
 
     return {
       knockout_starting_round: startingRound,
       is_bracket_locked: Boolean(tourney.is_bracket_locked),
       is_knockout_created:
-        Boolean(tourney.is_knockout_created) || configuredSlotsCount > 0,
+        hasKnockoutInDb || Boolean(tourney.is_knockout_created && tourney.bracket_data),
       base_match_number: baseMatchNumber,
       group_seeds: groupSeeds,
       bracket_data: resolvedBracketData,
@@ -753,10 +1155,7 @@ export class TournamentService {
         logo: (t as any).logo_url || t.logo || '',
         group_name: t.group_name || null,
       })),
-      knockout_matches_count: Math.max(
-        knockoutMatches.length,
-        configuredSlotsCount
-      ),
+      knockout_matches_count: knockoutMatches.length,
     };
   }
 
@@ -770,20 +1169,8 @@ export class TournamentService {
       Number(current.base_match_number) || 0
     );
 
-    const { matchService } = await import('./match.service.ts');
-    const standingsOverview = await matchService.getGroupStandings(id);
-    const groupsMap = standingsOverview.groups || {};
-    const groupKeys = Object.keys(groupsMap);
-
-    // Map clean group letter ("A", "B", ...) to its standings array
-    const standingsByLetter = new Map<string, any[]>();
-    for (const key of groupKeys) {
-      const letter = key
-        .replace(/^(กลุ่ม|สาย|Group)\s*/i, '')
-        .trim()
-        .toUpperCase();
-      standingsByLetter.set(letter, groupsMap[key] || []);
-    }
+    const standingsLookup = await this.buildStandingsLookup(id);
+    const { groupsMap, groupKeys, resolveBySeed } = standingsLookup;
 
     const toSlotTeam = (row?: any, seedCode?: string | null) => {
       if (!row) {
@@ -791,7 +1178,7 @@ export class TournamentService {
           id: null,
           name: seedCode || '-',
           seedCode: seedCode || null,
-          shortName: '',
+          shortName: seedCode || '',
           logo: '',
           score: null,
           penaltyScore: null,
@@ -808,15 +1195,6 @@ export class TournamentService {
       };
     };
 
-    const resolveBySeedCode = (seedCode: string) => {
-      const match = seedCode.trim().match(/^([A-Z])(\d+)$/i);
-      if (!match) return undefined;
-      const letter = match[1].toUpperCase();
-      const rankIdx = Math.max(0, parseInt(match[2], 10) - 1);
-      const groupRows = standingsByLetter.get(letter);
-      return groupRows ? groupRows[rankIdx] : undefined;
-    };
-
     const getRankTeam = (gIdx: number, rankIdx: number) => {
       const gKey = groupKeys[gIdx];
       if (!gKey || !groupsMap[gKey]) return undefined;
@@ -828,20 +1206,38 @@ export class TournamentService {
       defaultSeedCode: string,
       fallbackRow?: any
     ) => {
+      const incName =
+        existingTeamSlot?.name !== undefined && existingTeamSlot?.name !== null
+          ? String(existingTeamSlot.name).trim()
+          : '';
+      const isCleared =
+        incName === '-' ||
+        (existingTeamSlot?.seedCode === null &&
+          !existingTeamSlot?.id &&
+          (!incName || incName === '-'));
+      if (isCleared) {
+        return toSlotTeam(undefined, null);
+      }
+
       const candidateSeed =
         existingTeamSlot?.seedCode ||
-        (existingTeamSlot?.name &&
-        /^([A-Z])(\d+)$/i.test(String(existingTeamSlot.name).trim())
-          ? String(existingTeamSlot.name).trim().toUpperCase()
+        (incName && /^([A-Z])(\d+)$/i.test(incName)
+          ? incName.toUpperCase()
           : null);
 
       if (candidateSeed) {
-        const row = resolveBySeedCode(candidateSeed);
-        return toSlotTeam(row, candidateSeed);
+        const row = resolveBySeed(candidateSeed);
+        if (row && row.teamName && row.played > 0) {
+          return toSlotTeam(row, candidateSeed);
+        }
+        return toSlotTeam(undefined, candidateSeed);
       }
 
-      const defaultRow = resolveBySeedCode(defaultSeedCode) || fallbackRow;
-      return toSlotTeam(defaultRow, defaultSeedCode);
+      const defaultRow = resolveBySeed(defaultSeedCode) || fallbackRow;
+      if (defaultRow && defaultRow.teamName && defaultRow.played > 0) {
+        return toSlotTeam(defaultRow, defaultSeedCode);
+      }
+      return toSlotTeam(undefined, defaultSeedCode);
     };
 
     if (startingRound === 'qf') {
@@ -881,15 +1277,79 @@ export class TournamentService {
       );
     }
 
-    return {
-      ...current,
+    const advanced = this.advanceBracketWinners(
+      bracketData,
+      startingRound,
+      Number(current.base_match_number) || 0
+    );
+
+    return this.updateBracket(id, {
+      bracket_data: advanced,
       is_knockout_created: true,
-      bracket_data: this.advanceBracketWinners(
-        bracketData,
-        startingRound,
-        Number(current.base_match_number) || 0
-      ),
-    };
+      knockout_starting_round: startingRound,
+    });
+  }
+
+  async syncBracketFromStandingsAndResults(id: string): Promise<any> {
+    const tourney = await tournamentRepository.findById(id);
+    if (!tourney) return null;
+
+    const { matchRepository } = await import('../repositories/match.repository.ts');
+    const allMatches = await matchRepository.findByTournament(id);
+    const existingKnockoutMatches = allMatches.filter(
+      (m) => m.stage && m.stage !== 'group'
+    );
+
+    // Only sync existing knockout matches; never resurrect deleted matches or create new ones automatically
+    if (existingKnockoutMatches.length === 0) {
+      return null;
+    }
+
+    const bracketInfo = await this.getBracket(id);
+    const bData = bracketInfo?.bracket_data;
+    if (!bData) return bracketInfo;
+
+    const allSlots: any[] = [
+      ...(bData.qfMatches || []),
+      ...(bData.sfMatches || []),
+      bData.thirdPlaceMatch,
+      bData.finalMatch,
+    ].filter(Boolean);
+
+    for (const slot of allSlots) {
+      if (!slot.matchId) continue;
+      const existingMatch = existingKnockoutMatches.find(
+        (km) => String(km.id) === String(slot.matchId)
+      );
+      if (!existingMatch) continue;
+
+      const homeVal = slot.team1?.id
+        ? String(slot.team1.id)
+        : slot.team1?.name && slot.team1.name !== '-'
+        ? String(slot.team1.name)
+        : '-';
+      const awayVal = slot.team2?.id
+        ? String(slot.team2.id)
+        : slot.team2?.name && slot.team2.name !== '-'
+        ? String(slot.team2.name)
+        : '-';
+
+      if (
+        String(existingMatch.home_team_id || '') !== homeVal ||
+        String(existingMatch.away_team_id || '') !== awayVal
+      ) {
+        try {
+          await matchRepository.update(id, String(existingMatch.id), {
+            home_team_id: homeVal,
+            away_team_id: awayVal,
+          });
+        } catch (err) {
+          console.warn('[syncBracketFromStandingsAndResults] Update notice:', err);
+        }
+      }
+    }
+
+    return bracketInfo;
   }
 
   async updateBracket(
@@ -908,9 +1368,10 @@ export class TournamentService {
     const { teamRepository } = await import('../repositories/team.repository.ts');
     const { matchRepository } = await import('../repositories/match.repository.ts');
 
-    const [teams, allMatches] = await Promise.all([
+    const [teams, allMatches, standingsLookup] = await Promise.all([
       teamRepository.findByTournament(id),
       matchRepository.findByTournament(id),
+      this.buildStandingsLookup(id),
     ]);
 
     const teamById = new Map<string, any>();
@@ -944,99 +1405,177 @@ export class TournamentService {
     const baseMatchNumber =
       maxGroupMatchNum > 0 ? maxGroupMatchNum : groupMatches.length;
 
-    // 1. Preserve existing date/time/venue from stored bracket_data before advancing winners
-    const storedBracket = this.buildDefaultBracketData(tourney.bracket_data);
-    const storedSlotById = new Map<string, any>();
-    [
-      ...(storedBracket.qfMatches || []),
-      ...(storedBracket.sfMatches || []),
-      storedBracket.thirdPlaceMatch,
-      storedBracket.finalMatch,
-    ].forEach((s) => {
-      if (s?.id) storedSlotById.set(String(s.id), s);
-    });
+    const normalizedInput = this.buildDefaultBracketData(
+      payload.bracket_data || tourney.bracket_data || {}
+    );
+
+    const resolveStartingSlotForSave = (slotTeam: any) => {
+      if (!slotTeam) {
+        return {
+          id: null,
+          name: '-',
+          seedCode: null,
+          shortName: '',
+          logo: '',
+          score: null,
+          penaltyScore: null,
+        };
+      }
+      const incName =
+        slotTeam.name !== undefined && slotTeam.name !== null
+          ? String(slotTeam.name).trim()
+          : '';
+      const isCleared =
+        incName === '-' ||
+        (slotTeam.seedCode === null && !slotTeam.id && (!incName || incName === '-'));
+      if (isCleared) {
+        return {
+          id: null,
+          name: '-',
+          seedCode: null,
+          shortName: '',
+          logo: '',
+          score: slotTeam.score ?? null,
+          penaltyScore: slotTeam.penaltyScore ?? null,
+        };
+      }
+
+      const seed =
+        slotTeam.seedCode ||
+        (incName && /^([A-Z])(\d+)$/i.test(incName) ? incName.toUpperCase() : null);
+
+      if (seed) {
+        const row = standingsLookup.resolveBySeed(seed);
+        if (row && row.teamName && row.played > 0) {
+          const matched = teamById.get(String(row.teamId));
+          return {
+            ...slotTeam,
+            id: String(row.teamId),
+            name: row.teamName,
+            seedCode: seed,
+            shortName: row.shortName || row.teamName.slice(0, 3).toUpperCase(),
+            logo: (matched as any)?.logo_url || matched?.logo || row.teamLogo || '',
+          };
+        }
+        return {
+          ...slotTeam,
+          id: null,
+          name: seed,
+          seedCode: seed,
+          shortName: seed,
+          logo: '',
+        };
+      }
+
+      const matchedId = resolveTeamId(slotTeam);
+      if (matchedId) {
+        const matched = teamById.get(matchedId);
+        return {
+          ...slotTeam,
+          id: matchedId,
+          name: matched?.name || incName,
+          seedCode: standingsLookup.seedByTeamId.get(matchedId) || null,
+          shortName:
+            matched?.short_name ||
+            (matched?.name || incName).slice(0, 3).toUpperCase(),
+          logo: (matched as any)?.logo_url || matched?.logo || slotTeam.logo || '',
+        };
+      }
+
+      return slotTeam;
+    };
+
+    if (startingRound === 'qf') {
+      normalizedInput.qfMatches = normalizedInput.qfMatches.map((m: any) => ({
+        ...m,
+        team1: resolveStartingSlotForSave(m.team1),
+        team2: resolveStartingSlotForSave(m.team2),
+      }));
+    } else if (startingRound === 'sf') {
+      normalizedInput.sfMatches = normalizedInput.sfMatches.map((m: any) => ({
+        ...m,
+        team1: resolveStartingSlotForSave(m.team1),
+        team2: resolveStartingSlotForSave(m.team2),
+      }));
+    } else if (startingRound === 'final') {
+      normalizedInput.finalMatch = {
+        ...normalizedInput.finalMatch,
+        team1: resolveStartingSlotForSave(normalizedInput.finalMatch.team1),
+        team2: resolveStartingSlotForSave(normalizedInput.finalMatch.team2),
+      };
+    }
 
     const advancedBracket = this.advanceBracketWinners(
-      payload.bracket_data || tourney.bracket_data || {},
+      normalizedInput,
       startingRound,
       baseMatchNumber
     );
 
-    const preserveSlotSchedule = (slot: any) => {
-      if (!slot) return slot;
-      const prev = storedSlotById.get(String(slot.id));
-      if (!prev) return slot;
-      return {
-        ...slot,
-        date:
-          slot.date && slot.date !== 'TBD' && slot.date !== '2 พ.ย. 2026'
-            ? slot.date
-            : prev.date || slot.date || 'TBD',
-        time: slot.time || prev.time || '16:00',
-        venue:
-          slot.venue &&
-          slot.venue !== 'สนามหลัก (รอบชิง)' &&
-          slot.venue !== 'สนามหลัก'
-            ? slot.venue
-            : prev.venue || slot.venue || 'สนาม 1',
-      };
-    };
-
-    advancedBracket.qfMatches = advancedBracket.qfMatches.map(preserveSlotSchedule);
-    advancedBracket.sfMatches = advancedBracket.sfMatches.map(preserveSlotSchedule);
-    advancedBracket.thirdPlaceMatch = preserveSlotSchedule(
-      advancedBracket.thirdPlaceMatch
-    );
-    advancedBracket.finalMatch = preserveSlotSchedule(advancedBracket.finalMatch);
-
     const resolveSlotParticipant = (
       slotTeam: any
-    ): { teamId: string | null; participantValue: string | null } => {
+    ): { teamId: string | null; participantValue: string } => {
+      const rawName = slotTeam?.name ? String(slotTeam.name).trim() : '';
+      if (
+        !slotTeam ||
+        rawName === '-' ||
+        (slotTeam.seedCode === null && !slotTeam.id && !rawName)
+      ) {
+        return { teamId: null, participantValue: '-' };
+      }
+
       const teamId = resolveTeamId(slotTeam);
       if (teamId) {
         return { teamId, participantValue: teamId };
       }
-      const rawName = slotTeam?.name ? String(slotTeam.name).trim() : '';
-      if (rawName && rawName !== '-') {
+
+      if (slotTeam.seedCode) {
+        return { teamId: null, participantValue: String(slotTeam.seedCode).trim().toUpperCase() };
+      }
+
+      if (rawName) {
         return { teamId: null, participantValue: rawName };
       }
-      return { teamId: null, participantValue: null };
-    };
 
-    const hasAnyConfiguredSlot = [
-      ...advancedBracket.qfMatches,
-      ...advancedBracket.sfMatches,
-      advancedBracket.thirdPlaceMatch,
-      advancedBracket.finalMatch,
-    ].some((s) => this.hasFeederMatchConfigured(s));
+      return { teamId: null, participantValue: '-' };
+    };
 
     const isKnockoutCreated =
       payload.is_knockout_created !== undefined
-        ? Boolean(payload.is_knockout_created) || hasAnyConfiguredSlot
-        : Boolean(tourney.is_knockout_created) || hasAnyConfiguredSlot;
+        ? Boolean(payload.is_knockout_created)
+        : existingKnockoutMatches.length > 0 || Boolean(tourney.is_knockout_created);
 
-    // 2. Sync knockout matches to public.matches while keeping all group matches untouched
-
-    const activeSlots: any[] = !isKnockoutCreated
-      ? []
-      : startingRound === 'qf'
-      ? [
-          ...advancedBracket.qfMatches,
-          ...advancedBracket.sfMatches,
-          advancedBracket.thirdPlaceMatch,
-          advancedBracket.finalMatch,
-        ]
-      : startingRound === 'final'
-      ? [advancedBracket.finalMatch]
-      : [
-          ...advancedBracket.sfMatches,
-          advancedBracket.thirdPlaceMatch,
-          advancedBracket.finalMatch,
-        ];
+    // Sync knockout matches to public.matches while keeping all group matches untouched
+    const activeSlotsWithRoundIdx: Array<{ slot: any; roundIdx: number }> =
+      !isKnockoutCreated
+        ? []
+        : startingRound === 'qf'
+        ? [
+            ...advancedBracket.qfMatches.map((slot: any, idx: number) => ({
+              slot,
+              roundIdx: idx,
+            })),
+            ...advancedBracket.sfMatches.map((slot: any, idx: number) => ({
+              slot,
+              roundIdx: idx,
+            })),
+            { slot: advancedBracket.thirdPlaceMatch, roundIdx: 0 },
+            { slot: advancedBracket.finalMatch, roundIdx: 0 },
+          ]
+        : startingRound === 'final'
+        ? [{ slot: advancedBracket.finalMatch, roundIdx: 0 }]
+        : [
+            ...advancedBracket.sfMatches.map((slot: any, idx: number) => ({
+              slot,
+              roundIdx: idx,
+            })),
+            { slot: advancedBracket.thirdPlaceMatch, roundIdx: 0 },
+            { slot: advancedBracket.finalMatch, roundIdx: 0 },
+          ];
 
     const keptKnockoutMatchIds = new Set<string>();
 
-    for (const slot of activeSlots) {
+    for (const { slot, roundIdx } of activeSlotsWithRoundIdx) {
+      if (!slot) continue;
       const homeParticipant = resolveSlotParticipant(slot.team1);
       const awayParticipant = resolveSlotParticipant(slot.team2);
       const targetMatchNumber = Number(slot.matchNumber) || baseMatchNumber + 1;
@@ -1044,62 +1583,63 @@ export class TournamentService {
       slot.team1.id = homeParticipant.teamId;
       slot.team2.id = awayParticipant.teamId;
 
-      const homeVal =
-        homeParticipant.teamId ||
-        homeParticipant.participantValue ||
-        (slot.team1?.name && slot.team1.name !== '-' ? slot.team1.name : null);
-      const awayVal =
-        awayParticipant.teamId ||
-        awayParticipant.participantValue ||
-        (slot.team2?.name && slot.team2.name !== '-' ? slot.team2.name : null);
+      const homeVal = homeParticipant.teamId || homeParticipant.participantValue || '-';
+      const awayVal = awayParticipant.teamId || awayParticipant.participantValue || '-';
 
-      if (homeVal && awayVal) {
-        const existingMatch = existingKnockoutMatches.find(
-          (km) =>
-            (slot.matchId && String(km.id) === String(slot.matchId)) ||
-            Number(km.match_number) === targetMatchNumber
-        );
+      const existingMatch = this.findDbMatchForSlot(
+        slot,
+        roundIdx,
+        existingKnockoutMatches,
+        keptKnockoutMatchIds
+      );
 
-        try {
-          if (existingMatch) {
-            keptKnockoutMatchIds.add(String(existingMatch.id));
-            await matchRepository.update(id, String(existingMatch.id), {
-              match_number: targetMatchNumber,
-              stage: 'knockout',
-              round_name: slot.roundName,
-              group_name: 'Knockout',
-              home_team_id: homeVal,
-              away_team_id: awayVal,
-              match_date: slot.date || existingMatch.match_date || 'TBD',
-              match_time: slot.time || existingMatch.match_time || '16:00',
-              venue: slot.venue || existingMatch.venue || 'สนาม 1',
-            });
-            slot.matchId = String(existingMatch.id);
-          } else {
-            const created = await matchRepository.create({
-              tournament_id: id,
-              match_number: targetMatchNumber,
-              matchday: 1,
-              stage: 'knockout',
-              round_name: slot.roundName,
-              group_name: 'Knockout',
-              home_team_id: homeVal,
-              away_team_id: awayVal,
-              match_date: slot.date || 'TBD',
-              match_time: slot.time || '16:00',
-              venue: slot.venue || 'สนาม 1',
-              status: 'SCHEDULED',
-              home_score: 0,
-              away_score: 0,
-            });
-            keptKnockoutMatchIds.add(String(created.id));
-            slot.matchId = String(created.id);
-          }
-        } catch (err) {
-          console.warn('[updateBracket] Direct public.matches insert notice for slot:', slot.id, err);
+      try {
+        if (existingMatch) {
+          keptKnockoutMatchIds.add(String(existingMatch.id));
+          await matchRepository.update(id, String(existingMatch.id), {
+            match_number: targetMatchNumber,
+            stage: 'knockout',
+            round_name: slot.roundName,
+            group_name: 'Knockout',
+            home_team_id: homeVal,
+            away_team_id: awayVal,
+            match_date:
+              slot.date && slot.date !== 'TBD'
+                ? slot.date
+                : existingMatch.match_date || 'TBD',
+            match_time: slot.time || existingMatch.match_time || '16:00',
+            venue:
+              slot.venue && slot.venue !== 'สนามหลัก'
+                ? slot.venue
+                : existingMatch.venue || slot.venue || 'สนาม 1',
+          });
+          slot.matchId = String(existingMatch.id);
+        } else {
+          const created = await matchRepository.create({
+            tournament_id: id,
+            match_number: targetMatchNumber,
+            matchday: 1,
+            stage: 'knockout',
+            round_name: slot.roundName,
+            group_name: 'Knockout',
+            home_team_id: homeVal,
+            away_team_id: awayVal,
+            match_date: slot.date || 'TBD',
+            match_time: slot.time || '16:00',
+            venue: slot.venue || 'สนาม 1',
+            status: 'SCHEDULED',
+            home_score: 0,
+            away_score: 0,
+          });
+          keptKnockoutMatchIds.add(String(created.id));
+          slot.matchId = String(created.id);
         }
-      } else {
-        slot.matchId = null;
+      } catch (err) {
+        console.warn(
+          '[updateBracket] Direct public.matches insert/update notice for slot:',
+          slot.id,
+          err
+        );
       }
     }
 
@@ -1114,7 +1654,7 @@ export class TournamentService {
       }
     }
 
-    // 3. Persist updated bracket metadata to public.tournaments
+    // Persist updated bracket metadata to public.tournaments
     await tournamentRepository.update(id, {
       bracket_data: advancedBracket,
       is_bracket_locked:
@@ -1141,15 +1681,23 @@ export class TournamentService {
     clearAll: boolean = false
   ): Promise<void> {
     const tourney = await this.getTournamentById(id);
-    if (clearAll) {
+    if (clearAll || !knockoutItems || knockoutItems.length === 0) {
+      const bData = this.buildDefaultBracketData(tourney.bracket_data);
+      const clearSlotLink = (slot: any) => ({
+        ...slot,
+        matchId: null,
+      });
+      bData.qfMatches = bData.qfMatches.map(clearSlotLink);
+      bData.sfMatches = bData.sfMatches.map(clearSlotLink);
+      bData.thirdPlaceMatch = clearSlotLink(bData.thirdPlaceMatch);
+      bData.finalMatch = clearSlotLink(bData.finalMatch);
+
       await tournamentRepository.update(id, {
-        bracket_data: {},
+        bracket_data: bData,
         is_knockout_created: false,
       });
       return;
     }
-
-    if (!knockoutItems || knockoutItems.length === 0) return;
 
     const startingRound = tourney.knockout_starting_round || 'sf';
     const bData = this.buildDefaultBracketData(tourney.bracket_data);
@@ -1197,7 +1745,15 @@ export class TournamentService {
         (slot.matchId ? byMatchId.get(String(slot.matchId)) : undefined) ||
         byMatchNumber.get(Number(slot.matchNumber)) ||
         byRoundAndIndex.get(`${slot.roundName}#${roundIdx}`);
-      if (!found) return slot;
+
+      if (!found) {
+        // Slot match was deleted from the schedule
+        return {
+          ...slot,
+          matchId: null,
+        };
+      }
+
       return {
         ...slot,
         matchNumber: found.match_number || slot.matchNumber,
@@ -1218,6 +1774,7 @@ export class TournamentService {
 
     await tournamentRepository.update(id, {
       bracket_data: bData,
+      is_knockout_created: true,
     });
   }
 }

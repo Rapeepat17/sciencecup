@@ -10,6 +10,8 @@ import { BracketMatchup } from '../../../types';
 
 export interface KnockoutPageProps {
   tournamentId?: string;
+  tournamentName?: string;
+  startingRound?: 'qf' | 'sf' | 'final';
   qfMatches?: BracketMatchup[];
   sfMatches?: BracketMatchup[];
   finalMatch?: BracketMatchup | null;
@@ -18,6 +20,8 @@ export interface KnockoutPageProps {
 
 export const KnockoutPage: React.FC<KnockoutPageProps> = ({
   tournamentId,
+  tournamentName,
+  startingRound = 'sf',
   qfMatches: initialQf,
   sfMatches: initialSf,
   finalMatch: initialFinal,
@@ -61,16 +65,19 @@ export const KnockoutPage: React.FC<KnockoutPageProps> = ({
   return (
     <div className="space-y-6">
       {/* 1. Knockout Header Banner */}
-      <KnockoutBanner />
+      <KnockoutBanner tournamentName={tournamentName} />
 
       {/* 2. Round Filter Tabs */}
       <KnockoutFilterTabs
         selectedRound={selectedRound}
         onSelectRound={setSelectedRound}
+        startingRound={startingRound}
       />
 
       {/* 3. Visual Bracket Tree */}
       <BracketTree
+        tournamentName={tournamentName}
+        startingRound={startingRound}
         qfMatches={qfMatches}
         sfMatches={sfMatches}
         finalMatch={finalMatch}

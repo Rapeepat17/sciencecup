@@ -15,6 +15,15 @@ function isCompletedStatus(status?: string | null): boolean {
   return s === 'COMPLETED' || s === 'FINISHED' || s === 'FT';
 }
 
+function normalizeGroupName(raw?: string | null): string {
+  if (!raw) return '';
+  const cleaned = String(raw)
+    .replace(/^(กลุ่ม|สาย|Group)\s*/i, '')
+    .trim();
+  if (!cleaned) return '';
+  return cleaned.length <= 2 ? cleaned.toUpperCase() : cleaned;
+}
+
 export class StandingsService {
   calculateGroupStandings(
     teams: Team[],
@@ -26,16 +35,71 @@ export class StandingsService {
     // 0. Pre-create empty group buckets if definedGroupNames are provided
     if (Array.isArray(definedGroupNames) && definedGroupNames.length > 0) {
       for (const gName of definedGroupNames) {
-        const clean = String(gName || '').trim();
+        const clean = normalizeGroupName(gName);
         if (clean && !tableMap[clean]) {
           tableMap[clean] = {};
         }
       }
     }
 
+    const teamById = new Map<string, Team>();
+    const teamByName = new Map<string, Team>();
+    for (const t of teams) {
+      teamById.set(String(t.id), t);
+      if (t.name) {
+        teamByName.set(t.name.trim().toLowerCase(), t);
+      }
+    }
+
+    const resolveTeamRecord = (rawRef?: string | number | null): Team | undefined => {
+      if (rawRef === null || rawRef === undefined) return undefined;
+      const key = String(rawRef).trim();
+      if (!key) return undefined;
+      return teamById.get(key) || teamByName.get(key.toLowerCase());
+    };
+
+    const inferredGroupByTeamId = new Map<string, string>();
+    for (const m of matches) {
+      if (m.stage && m.stage !== 'group') continue;
+      const mGrp = normalizeGroupName(m.group_name);
+      if (!mGrp || mGrp.toUpperCase() === 'KNOCKOUT') continue;
+      const hTeam = resolveTeamRecord(m.home_team_id);
+      const aTeam = resolveTeamRecord(m.away_team_id);
+      if (hTeam && !inferredGroupByTeamId.has(String(hTeam.id))) {
+        inferredGroupByTeamId.set(String(hTeam.id), mGrp);
+      }
+      if (aTeam && !inferredGroupByTeamId.has(String(aTeam.id))) {
+        inferredGroupByTeamId.set(String(aTeam.id), mGrp);
+      }
+    }
+
+    const createStandingRow = (team: Team, grp: string): GroupStandingRow => ({
+      rank: 1,
+      isQualified: false,
+      teamId: String(team.id),
+      teamName: team.name,
+      shortName:
+        team.short_name ||
+        (team.name ? team.name.slice(0, 3).toUpperCase() : 'TM'),
+      teamLogo: (team as any).logo_url || team.logo || null,
+      groupName: grp,
+      played: 0,
+      won: 0,
+      drawn: 0,
+      lost: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      goalDifference: 0,
+      points: 0,
+      form: [],
+    });
+
     // 1. Initialize records for teams
     for (const team of teams) {
-      const rawGrp = team.group_name ? String(team.group_name).trim() : '';
+      const rawGrp =
+        normalizeGroupName(team.group_name) ||
+        inferredGroupByTeamId.get(String(team.id)) ||
+        '';
       // If definedGroupNames was provided from DB, skip unassigned teams; otherwise fallback to 'Ungrouped'
       if (!rawGrp && Array.isArray(definedGroupNames)) {
         continue;
@@ -44,26 +108,7 @@ export class StandingsService {
       if (!tableMap[grp]) {
         tableMap[grp] = {};
       }
-      tableMap[grp][String(team.id)] = {
-        rank: 1,
-        isQualified: false,
-        teamId: String(team.id),
-        teamName: team.name,
-        shortName:
-          team.short_name ||
-          (team.name ? team.name.slice(0, 3).toUpperCase() : 'TM'),
-        teamLogo: (team as any).logo_url || team.logo || null,
-        groupName: grp,
-        played: 0,
-        won: 0,
-        drawn: 0,
-        lost: 0,
-        goalsFor: 0,
-        goalsAgainst: 0,
-        goalDifference: 0,
-        points: 0,
-        form: [],
-      };
+      tableMap[grp][String(team.id)] = createStandingRow(team, grp);
     }
 
     // 2. Process all played/live group matches in sequence
@@ -77,21 +122,40 @@ export class StandingsService {
       if (match.home_score === null || match.home_score === undefined) continue;
       if (match.away_score === null || match.away_score === undefined) continue;
 
-      const rawGrp = match.group_name ? String(match.group_name).trim() : '';
-      // Locate group bucket either by match.group_name or by looking up home_team_id
+      const homeTeam = resolveTeamRecord(match.home_team_id);
+      const awayTeam = resolveTeamRecord(match.away_team_id);
+      const homeKey = homeTeam ? String(homeTeam.id) : String(match.home_team_id);
+      const awayKey = awayTeam ? String(awayTeam.id) : String(match.away_team_id);
+
+      const rawGrp = normalizeGroupName(match.group_name);
+      // Locate group bucket either by normalized match.group_name or by looking up homeKey & awayKey
       let grp = rawGrp;
-      if (!grp || !tableMap[grp]) {
+      if (
+        !grp ||
+        !tableMap[grp] ||
+        !tableMap[grp][homeKey] ||
+        !tableMap[grp][awayKey]
+      ) {
         const foundGroup = Object.keys(tableMap).find(
-          (gKey) =>
-            tableMap[gKey][String(match.home_team_id)] &&
-            tableMap[gKey][String(match.away_team_id)]
+          (gKey) => tableMap[gKey][homeKey] && tableMap[gKey][awayKey]
         );
-        if (foundGroup) grp = foundGroup;
+        if (foundGroup) {
+          grp = foundGroup;
+        } else if (rawGrp && homeTeam && awayTeam) {
+          if (!tableMap[rawGrp]) tableMap[rawGrp] = {};
+          if (!tableMap[rawGrp][homeKey]) {
+            tableMap[rawGrp][homeKey] = createStandingRow(homeTeam, rawGrp);
+          }
+          if (!tableMap[rawGrp][awayKey]) {
+            tableMap[rawGrp][awayKey] = createStandingRow(awayTeam, rawGrp);
+          }
+          grp = rawGrp;
+        }
       }
       if (!grp || !tableMap[grp]) continue;
 
-      const home = tableMap[grp][String(match.home_team_id)];
-      const away = tableMap[grp][String(match.away_team_id)];
+      const home = tableMap[grp][homeKey];
+      const away = tableMap[grp][awayKey];
       if (!home || !away) continue;
 
       const hScore = Number(match.home_score);

@@ -18,9 +18,19 @@ export interface BracketPageProps {
 }
 
 const createEmptyBracketData = (): BracketDataShape => {
-  const emptyTeam = () => ({
+  const seedTeam = (seedCode: string) => ({
     id: null,
-    name: '-',
+    name: seedCode,
+    seedCode,
+    shortName: seedCode,
+    logo: '',
+    score: null,
+    penaltyScore: null,
+  });
+
+  const placeholderTeam = (label: string) => ({
+    id: null,
+    name: label,
     shortName: '',
     logo: '',
     score: null,
@@ -32,57 +42,61 @@ const createEmptyBracketData = (): BracketDataShape => {
       {
         id: 'qf1',
         matchId: null,
+        matchNumber: 16,
         roundName: 'รอบ 8 ทีมสุดท้าย',
         slotLabel: 'รอบ 8 ทีม (คู่ที่ 1)',
-        seed1Label: 'อันดับ 1 กลุ่ม A',
-        seed2Label: 'อันดับ 2 กลุ่ม B',
+        seed1Label: 'A1',
+        seed2Label: 'B2',
         date: 'TBD',
         time: '16:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: seedTeam('A1'),
+        team2: seedTeam('B2'),
         winner: null,
       },
       {
         id: 'qf2',
         matchId: null,
+        matchNumber: 17,
         roundName: 'รอบ 8 ทีมสุดท้าย',
         slotLabel: 'รอบ 8 ทีม (คู่ที่ 2)',
-        seed1Label: 'อันดับ 1 กลุ่ม B',
-        seed2Label: 'อันดับ 2 กลุ่ม A',
+        seed1Label: 'B1',
+        seed2Label: 'A2',
         date: 'TBD',
         time: '17:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: seedTeam('B1'),
+        team2: seedTeam('A2'),
         winner: null,
       },
       {
         id: 'qf3',
         matchId: null,
+        matchNumber: 18,
         roundName: 'รอบ 8 ทีมสุดท้าย',
         slotLabel: 'รอบ 8 ทีม (คู่ที่ 3)',
-        seed1Label: 'อันดับ 1 กลุ่ม C',
-        seed2Label: 'อันดับ 2 กลุ่ม D',
+        seed1Label: 'C1',
+        seed2Label: 'D2',
         date: 'TBD',
         time: '18:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: seedTeam('C1'),
+        team2: seedTeam('D2'),
         winner: null,
       },
       {
         id: 'qf4',
         matchId: null,
+        matchNumber: 19,
         roundName: 'รอบ 8 ทีมสุดท้าย',
         slotLabel: 'รอบ 8 ทีม (คู่ที่ 4)',
-        seed1Label: 'อันดับ 1 กลุ่ม D',
-        seed2Label: 'อันดับ 2 กลุ่ม C',
+        seed1Label: 'D1',
+        seed2Label: 'C2',
         date: 'TBD',
         time: '19:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: seedTeam('D1'),
+        team2: seedTeam('C2'),
         winner: null,
       },
     ],
@@ -90,58 +104,62 @@ const createEmptyBracketData = (): BracketDataShape => {
       {
         id: 'sf1',
         matchId: null,
+        matchNumber: 20,
         roundName: 'รอบรองชนะเลิศ',
         slotLabel: 'รอบรองชนะเลิศ (คู่ที่ 1)',
-        seed1Label: 'อันดับ 1 กลุ่ม A',
-        seed2Label: 'อันดับ 2 กลุ่ม B',
+        seed1Label: 'ทีมชนะคู่ 16',
+        seed2Label: 'ทีมชนะคู่ 17',
         date: 'TBD',
         time: '16:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: placeholderTeam('ทีมชนะคู่ 16'),
+        team2: placeholderTeam('ทีมชนะคู่ 17'),
         winner: null,
       },
       {
         id: 'sf2',
         matchId: null,
+        matchNumber: 21,
         roundName: 'รอบรองชนะเลิศ',
         slotLabel: 'รอบรองชนะเลิศ (คู่ที่ 2)',
-        seed1Label: 'อันดับ 1 กลุ่ม B',
-        seed2Label: 'อันดับ 2 กลุ่ม A',
+        seed1Label: 'ทีมชนะคู่ 18',
+        seed2Label: 'ทีมชนะคู่ 19',
         date: 'TBD',
         time: '17:00',
         venue: 'สนาม 1',
-        team1: emptyTeam(),
-        team2: emptyTeam(),
+        team1: placeholderTeam('ทีมชนะคู่ 18'),
+        team2: placeholderTeam('ทีมชนะคู่ 19'),
         winner: null,
       },
     ],
     thirdPlaceMatch: {
       id: 'third_place',
       matchId: null,
+      matchNumber: 22,
       roundName: 'นัดชิงอันดับ 3',
       slotLabel: 'นัดชิงอันดับ 3',
-      seed1Label: 'ผู้แพ้ รอบรองฯ 1',
-      seed2Label: 'ผู้แพ้ รอบรองฯ 2',
+      seed1Label: 'ทีมแพ้คู่ 20',
+      seed2Label: 'ทีมแพ้คู่ 21',
       date: 'TBD',
       time: '16:00',
       venue: 'สนาม 1',
-      team1: emptyTeam(),
-      team2: emptyTeam(),
+      team1: placeholderTeam('ทีมแพ้คู่ 20'),
+      team2: placeholderTeam('ทีมแพ้คู่ 21'),
       winner: null,
     },
     finalMatch: {
       id: 'final',
       matchId: null,
+      matchNumber: 23,
       roundName: 'นัดชิงชนะเลิศ',
       slotLabel: 'นัดชิงชนะเลิศ (Final)',
-      seed1Label: 'ผู้ชนะ รอบรองฯ 1',
-      seed2Label: 'ผู้ชนะ รอบรองฯ 2',
+      seed1Label: 'ทีมชนะคู่ 20',
+      seed2Label: 'ทีมชนะคู่ 21',
       date: 'TBD',
       time: '18:00',
       venue: 'สนาม 1',
-      team1: emptyTeam(),
-      team2: emptyTeam(),
+      team1: placeholderTeam('ทีมชนะคู่ 20'),
+      team2: placeholderTeam('ทีมชนะคู่ 21'),
       winner: null,
     },
   };
@@ -209,23 +227,71 @@ export const BracketPage: React.FC<BracketPageProps> = ({
     const def = createEmptyBracketData();
     const incoming = res?.bracket_data || {};
 
+    const mergeClientTeam = (defTeam: any, incTeam?: any) => {
+      if (!incTeam || typeof incTeam !== 'object') return defTeam;
+      const incName =
+        incTeam.name !== undefined && incTeam.name !== null
+          ? String(incTeam.name).trim()
+          : '';
+      const isCleared =
+        incName === '-' ||
+        (incTeam.seedCode === null && !incTeam.id && (!incName || incName === '-'));
+      if (isCleared) {
+        return {
+          id: null,
+          name: '-',
+          seedCode: null,
+          shortName: '',
+          logo: '',
+          score: null,
+          penaltyScore: null,
+        };
+      }
+      const hasReal = incTeam.id || (incName && incName !== '-' && incName !== 'TBD');
+      if (hasReal || incTeam.seedCode) {
+        return {
+          ...defTeam,
+          ...incTeam,
+          name: incName || incTeam.seedCode || defTeam.name,
+          seedCode:
+            incTeam.seedCode ||
+            (hasReal && /^([A-Z])(\d+)$/i.test(incName)
+              ? incName.toUpperCase()
+              : defTeam.seedCode),
+        };
+      }
+      return defTeam;
+    };
+
+    const mergeClientSlot = (defSlot: any, incSlot?: any) => {
+      if (!incSlot || typeof incSlot !== 'object') return defSlot;
+      const t1 = mergeClientTeam(defSlot.team1, incSlot.team1);
+      const t2 = mergeClientTeam(defSlot.team2, incSlot.team2);
+      return {
+        ...defSlot,
+        ...incSlot,
+        roundName: defSlot.roundName,
+        slotLabel: incSlot.slotLabel || defSlot.slotLabel,
+        seed1Label:
+          t1?.seedCode ||
+          (t1?.name && t1.name !== '-' ? t1.name : null) ||
+          incSlot.seed1Label ||
+          defSlot.seed1Label,
+        seed2Label:
+          t2?.seedCode ||
+          (t2?.name && t2.name !== '-' ? t2.name : null) ||
+          incSlot.seed2Label ||
+          defSlot.seed2Label,
+        team1: t1,
+        team2: t2,
+      };
+    };
+
     setBracketData({
-      qfMatches: def.qfMatches.map((d, i) => ({
-        ...d,
-        ...(incoming.qfMatches?.[i] || {}),
-      })),
-      sfMatches: def.sfMatches.map((d, i) => ({
-        ...d,
-        ...(incoming.sfMatches?.[i] || {}),
-      })),
-      thirdPlaceMatch: {
-        ...def.thirdPlaceMatch,
-        ...(incoming.thirdPlaceMatch || {}),
-      },
-      finalMatch: {
-        ...def.finalMatch,
-        ...(incoming.finalMatch || {}),
-      },
+      qfMatches: def.qfMatches.map((d, i) => mergeClientSlot(d, incoming.qfMatches?.[i])),
+      sfMatches: def.sfMatches.map((d, i) => mergeClientSlot(d, incoming.sfMatches?.[i])),
+      thirdPlaceMatch: mergeClientSlot(def.thirdPlaceMatch, incoming.thirdPlaceMatch),
+      finalMatch: mergeClientSlot(def.finalMatch, incoming.finalMatch),
     });
   }, []);
 
@@ -301,8 +367,60 @@ export const BracketPage: React.FC<BracketPageProps> = ({
           penaltyScore: null,
         };
 
+    const clearDuplicateSeed = (
+      m: BracketSlotMatchup,
+      idx: number,
+      stg: string
+    ): BracketSlotMatchup => {
+      let t1 = m.team1;
+      let t2 = m.team2;
+      let s1Label = m.seed1Label;
+      let s2Label = m.seed2Label;
+
+      if (seedCode) {
+        const isTarget = stg === stage && idx === matchIndex;
+        if (!isTarget || teamSlot !== 1) {
+          const c1 =
+            t1?.seedCode ||
+            (/^[A-Z]\d+$/i.test(t1?.name || '') ? t1.name.toUpperCase() : null);
+          if (c1 === seedCode.toUpperCase()) {
+            t1 = {
+              id: null,
+              name: '-',
+              seedCode: null,
+              shortName: '',
+              logo: '',
+              score: null,
+              penaltyScore: null,
+            };
+            s1Label = '-';
+          }
+        }
+        if (!isTarget || teamSlot !== 2) {
+          const c2 =
+            t2?.seedCode ||
+            (/^[A-Z]\d+$/i.test(t2?.name || '') ? t2.name.toUpperCase() : null);
+          if (c2 === seedCode.toUpperCase()) {
+            t2 = {
+              id: null,
+              name: '-',
+              seedCode: null,
+              shortName: '',
+              logo: '',
+              score: null,
+              penaltyScore: null,
+            };
+            s2Label = '-';
+          }
+        }
+      }
+      return { ...m, team1: t1, team2: t2, seed1Label: s1Label, seed2Label: s2Label };
+    };
+
     const updateMatchupSlot = (m: BracketSlotMatchup): BracketSlotMatchup => ({
       ...m,
+      seed1Label: teamSlot === 1 ? seedCode || '-' : m.seed1Label,
+      seed2Label: teamSlot === 2 ? seedCode || '-' : m.seed2Label,
       team1: teamSlot === 1 ? newTeamObj : m.team1,
       team2: teamSlot === 2 ? newTeamObj : m.team2,
       winner: null,
@@ -313,7 +431,9 @@ export const BracketPage: React.FC<BracketPageProps> = ({
         return {
           ...prev,
           qfMatches: prev.qfMatches.map((m, i) =>
-            i === matchIndex ? updateMatchupSlot(m) : m
+            i === matchIndex
+              ? updateMatchupSlot(m)
+              : clearDuplicateSeed(m, i, 'qf')
           ),
         };
       }
@@ -321,7 +441,9 @@ export const BracketPage: React.FC<BracketPageProps> = ({
         return {
           ...prev,
           sfMatches: prev.sfMatches.map((m, i) =>
-            i === matchIndex ? updateMatchupSlot(m) : m
+            i === matchIndex
+              ? updateMatchupSlot(m)
+              : clearDuplicateSeed(m, i, 'sf')
           ),
         };
       }
@@ -378,12 +500,15 @@ export const BracketPage: React.FC<BracketPageProps> = ({
         if (code) used.add(code.toUpperCase());
       }
     };
-    bracketData.qfMatches.forEach(collectFromMatch);
-    bracketData.sfMatches.forEach(collectFromMatch);
-    collectFromMatch(bracketData.thirdPlaceMatch);
-    collectFromMatch(bracketData.finalMatch);
+    const activeMatches =
+      startingRound === 'qf'
+        ? bracketData.qfMatches
+        : startingRound === 'sf'
+        ? bracketData.sfMatches
+        : [bracketData.finalMatch];
+    activeMatches.forEach(collectFromMatch);
     return used;
-  }, [bracketData]);
+  }, [bracketData, startingRound]);
 
   const activeModalInfo = useMemo(() => {
     if (!editingSlot) return { title: '', currentSeedCode: null };

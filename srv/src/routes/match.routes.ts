@@ -8,6 +8,9 @@ import {
   addMatchEvent,
   getMatchEvents,
   getStandings,
+  getTopScorers,
+  syncMatchGoals,
+  syncMatchCards,
 } from '../controllers/match.controller.ts';
 import { authenticate, requireTournament, requireTournamentRole } from '../middleware/auth.middleware.ts';
 import { validate } from '../middleware/validate.middleware.ts';
@@ -17,6 +20,8 @@ import {
   updateMatchScoreSchema,
   createMatchSchema,
   syncMatchesSchema,
+  syncMatchGoalsSchema,
+  syncMatchCardsSchema,
 } from '../schemas/match.schema.ts';
 
 const router = Router({ mergeParams: true });
@@ -27,6 +32,7 @@ router.use(requireTournament);
 // Public routes
 router.get('/', validate({ params: tournamentIdParamSchema }), listMatches);
 router.get('/standings', validate({ params: tournamentIdParamSchema }), getStandings);
+router.get('/top-scorers', validate({ params: tournamentIdParamSchema }), getTopScorers);
 router.get('/:matchId', validate({ params: matchIdParamSchema }), getMatch);
 router.get('/:matchId/events', validate({ params: matchIdParamSchema }), getMatchEvents);
 
@@ -77,6 +83,38 @@ router.post(
   requireTournamentRole(['scorekeeper', 'admin', 'owner']),
   validate({ params: matchIdParamSchema }),
   addMatchEvent
+);
+
+router.put(
+  '/:matchId/goals',
+  authenticate,
+  requireTournamentRole(['scorekeeper', 'admin', 'owner']),
+  validate({ params: matchIdParamSchema, body: syncMatchGoalsSchema }),
+  syncMatchGoals
+);
+
+router.post(
+  '/:matchId/goals',
+  authenticate,
+  requireTournamentRole(['scorekeeper', 'admin', 'owner']),
+  validate({ params: matchIdParamSchema, body: syncMatchGoalsSchema }),
+  syncMatchGoals
+);
+
+router.put(
+  '/:matchId/cards',
+  authenticate,
+  requireTournamentRole(['scorekeeper', 'admin', 'owner']),
+  validate({ params: matchIdParamSchema, body: syncMatchCardsSchema }),
+  syncMatchCards
+);
+
+router.post(
+  '/:matchId/cards',
+  authenticate,
+  requireTournamentRole(['scorekeeper', 'admin', 'owner']),
+  validate({ params: matchIdParamSchema, body: syncMatchCardsSchema }),
+  syncMatchCards
 );
 
 export default router;

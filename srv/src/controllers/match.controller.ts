@@ -141,3 +141,60 @@ export async function getStandings(req: Request, res: Response, next: NextFuncti
     next(error);
   }
 }
+
+export async function syncMatchGoals(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tournamentId, matchId } = req.params;
+    const { goals } = req.body;
+    const events = await matchService.syncMatchGoals(tournamentId, matchId, goals || []);
+    const response: ApiResponse = {
+      success: true,
+      data: events,
+      meta: {
+        total: events.length,
+        timestamp: new Date().toISOString(),
+      },
+    };
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function syncMatchCards(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tournamentId, matchId } = req.params;
+    const { cards } = req.body;
+    const events = await matchService.syncMatchCards(tournamentId, matchId, cards || []);
+    const response: ApiResponse = {
+      success: true,
+      data: events,
+      meta: {
+        total: events.length,
+        timestamp: new Date().toISOString(),
+      },
+    };
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getTopScorers(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { tournamentId } = req.params;
+    const limit = req.query.limit ? Number(req.query.limit) : 10;
+    const scorers = await matchService.getTopScorers(tournamentId, limit);
+    const response: ApiResponse = {
+      success: true,
+      data: scorers,
+      meta: {
+        total: scorers.length,
+        timestamp: new Date().toISOString(),
+      },
+    };
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}

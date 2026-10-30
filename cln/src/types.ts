@@ -30,11 +30,16 @@ export interface Team {
 export type MatchStatus = 'LIVE' | 'FT' | 'UPCOMING' | 'POSTPONED';
 
 export interface MatchEvent {
-  id: string;
-  minute: number;
-  type: 'goal' | 'yellow_card' | 'red_card' | 'sub';
-  teamId: string | number;
-  playerName: string;
+  id: string | number;
+  minute?: number;
+  type?: 'goal' | 'yellow_card' | 'red_card' | 'sub';
+  teamId?: string | number;
+  playerName?: string;
+  event_type?: string;
+  team_id?: string | number;
+  player_id?: string | number;
+  player_number?: string | number;
+  detail?: string;
 }
 
 export type GroupMap = Record<string, Team[]>;

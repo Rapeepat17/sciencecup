@@ -63,4 +63,55 @@ export const matchService = {
   addEvent: (tournamentId: string, matchId: string, event: Partial<MatchEvent>): Promise<MatchEvent> => {
     return apiClient.post<MatchEvent>(`/api/v1/tournaments/${tournamentId}/matches/${matchId}/events`, event);
   },
+
+  syncMatchGoals: (
+    tournamentId: string,
+    matchId: string,
+    goals: Array<{
+      team_id?: string | number | null;
+      player_id?: string | null;
+      player_number?: string | null;
+      player_name?: string | null;
+      detail?: string | null;
+    }>
+  ): Promise<MatchEvent[]> => {
+    return apiClient.put<MatchEvent[]>(`/api/v1/tournaments/${tournamentId}/matches/${matchId}/goals`, { goals });
+  },
+
+  syncMatchCards: (
+    tournamentId: string,
+    matchId: string,
+    cards: Array<{
+      team_id?: string | number | null;
+      player_id?: string | null;
+      player_number?: string | null;
+      player_name?: string | null;
+      card_type: 'yellow_card' | 'red_card';
+      detail?: string | null;
+    }>
+  ): Promise<MatchEvent[]> => {
+    return apiClient.put<MatchEvent[]>(`/api/v1/tournaments/${tournamentId}/matches/${matchId}/cards`, { cards });
+  },
+
+  getTopScorers: async (
+    tournamentId: string,
+    limit: number = 10,
+    signal?: AbortSignal
+  ): Promise<
+    Array<{
+      id: string;
+      rank: number;
+      name: string;
+      number: string;
+      teamId: string;
+      teamName: string;
+      goals: number;
+    }>
+  > => {
+    try {
+      return await apiClient.get(`/api/v1/tournaments/${tournamentId}/top-scorers?limit=${limit}`, { signal });
+    } catch {
+      return apiClient.get(`/api/v1/tournaments/${tournamentId}/matches/top-scorers?limit=${limit}`, { signal });
+    }
+  },
 };

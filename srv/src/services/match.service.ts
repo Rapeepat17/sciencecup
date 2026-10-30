@@ -1,21 +1,96 @@
 import { matchRepository } from '../repositories/match.repository.ts';
 import { tournamentRepository } from '../repositories/tournament.repository.ts';
 import { teamRepository } from '../repositories/team.repository.ts';
+import { playerRepository } from '../repositories/player.repository.ts';
 import { standingsService } from './standings.service.ts';
 import { teamService } from './team.service.ts';
 import { Match, MatchEvent, Team } from '../types/models.types.ts';
 import { AppError } from '../middleware/errorHandler.ts';
 
 export class MatchService {
-  private enrichMatches(rawMatches: Match[], teams: Team[]): any[] {
+  private enrichMatches(rawMatches: Match[], teams: Team[], allEvents: MatchEvent[] = []): any[] {
     const teamMap = new Map<string, Team>();
     for (const t of teams) {
       teamMap.set(String(t.id), t);
     }
 
+    const eventsByMatch = new Map<string, MatchEvent[]>();
+    for (const evt of allEvents) {
+      const mId = String(evt.match_id);
+      if (!eventsByMatch.has(mId)) {
+        eventsByMatch.set(mId, []);
+      }
+      eventsByMatch.get(mId)!.push(evt);
+    }
+
     return rawMatches.map((m, idx) => {
       const homeTeamRecord = teamMap.get(String(m.home_team_id));
       const awayTeamRecord = teamMap.get(String(m.away_team_id));
+
+      const matchEvents = eventsByMatch.get(String(m.id)) || [];
+      const homeGoalEvents = matchEvents.filter(
+        (e) => e.event_type === 'goal' && String(e.team_id) === String(m.home_team_id)
+      );
+      const awayGoalEvents = matchEvents.filter(
+        (e) => e.event_type === 'goal' && String(e.team_id) === String(m.away_team_id)
+      );
+
+      const homeYellowEvents = matchEvents.filter(
+        (e) => e.event_type === 'yellow_card' && String(e.team_id) === String(m.home_team_id)
+      );
+      const homeRedEvents = matchEvents.filter(
+        (e) => e.event_type === 'red_card' && String(e.team_id) === String(m.home_team_id)
+      );
+      const awayYellowEvents = matchEvents.filter(
+        (e) => e.event_type === 'yellow_card' && String(e.team_id) === String(m.away_team_id)
+      );
+      const awayRedEvents = matchEvents.filter(
+        (e) => e.event_type === 'red_card' && String(e.team_id) === String(m.away_team_id)
+      );
+
+      const formatScorersSummary = (events: MatchEvent[]) => {
+        const nums = events
+          .map((e) => (e.player_number ? String(e.player_number).trim() : ''))
+          .filter(Boolean);
+        if (nums.length > 0) {
+          return `เบอร์ ${nums.join(', ')}`;
+        }
+        return events
+          .map((e) => e.detail || 'ผู้ทำประตู')
+          .filter(Boolean)
+          .join(', ');
+      };
+
+      const formatCardNumbers = (events: MatchEvent[]) =>
+        events
+          .map((e) => (e.player_number ? String(e.player_number).trim() : ''))
+          .filter(Boolean)
+          .join(', ');
+
+      const homeScorers = formatScorersSummary(homeGoalEvents);
+      const awayScorers = formatScorersSummary(awayGoalEvents);
+
+      const cardsT1 = {
+        yellow: homeYellowEvents.length,
+        red: homeRedEvents.length,
+        yellowPlayers: formatCardNumbers(homeYellowEvents),
+        redPlayers: formatCardNumbers(homeRedEvents),
+        details: [
+          ...homeYellowEvents.map((e) => ({ id: String(e.id), type: 'yellow' as const, playerNumber: String(e.player_number || '') })),
+          ...homeRedEvents.map((e) => ({ id: String(e.id), type: 'red' as const, playerNumber: String(e.player_number || '') })),
+        ],
+      };
+
+      const cardsT2 = {
+        yellow: awayYellowEvents.length,
+        red: awayRedEvents.length,
+        yellowPlayers: formatCardNumbers(awayYellowEvents),
+        redPlayers: formatCardNumbers(awayRedEvents),
+        details: [
+          ...awayYellowEvents.map((e) => ({ id: String(e.id), type: 'yellow' as const, playerNumber: String(e.player_number || '') })),
+          ...awayRedEvents.map((e) => ({ id: String(e.id), type: 'red' as const, playerNumber: String(e.player_number || '') })),
+        ],
+      };
 
       const matchNumber = m.match_number ?? idx + 1;
       const venue = m.venue || m.pitch || 'สนามหลัก';
@@ -92,6 +167,11 @@ export class MatchService {
         match_time: m.match_time || '',
         venue,
         status: uiStatus,
+        home_scorers: homeScorers,
+        away_scorers: awayScorers,
+        cardsT1,
+        cardsT2,
+        events: matchEvents,
 
         // Frontend schedule fields
         tournamentId: String(m.tournament_id),
@@ -106,6 +186,8 @@ export class MatchService {
         score2: m.away_score !== null && m.away_score !== undefined ? Number(m.away_score) : 0,
         penaltyScore1: m.home_penalty_score ?? null,
         penaltyScore2: m.away_penalty_score ?? null,
+        goalPlayers1: homeScorers,
+        goalPlayers2: awayScorers,
       };
     });
   }
@@ -116,12 +198,15 @@ export class MatchService {
       throw AppError.notFound(`Tournament "${tournamentId}" does not exist`);
     }
 
-    const [rawMatches, teams] = await Promise.all([
+    const [rawMatches, teams, allEvents] = await Promise.all([
       matchRepository.findByTournament(tournamentId, stage),
       teamRepository.findByTournament(tournamentId),
+      matchRepository.getAllEventsByTournament(tournamentId).catch(() =>
+        matchRepository.getGoalEventsByTournament(tournamentId).catch(() => [])
+      ),
     ]);
 
-    const enriched = this.enrichMatches(rawMatches, teams);
+    const enriched = this.enrichMatches(rawMatches, teams, allEvents);
 
     // Merge configured knockout bracket slots from tournament.bracket_data when not filtering solely for 'group'
     if (stage !== 'group') {
@@ -129,20 +214,24 @@ export class MatchService {
         const { tournamentService } = await import('./tournament.service.ts');
         const bracketInfo = await tournamentService.getBracket(tournamentId);
 
+        const hasKnockoutMatchesInDb = rawMatches.some(
+          (m) => m.stage && m.stage !== 'group'
+        );
+
         if (bracketInfo?.is_knockout_created && bracketInfo?.bracket_data) {
           const startingRound = bracketInfo.knockout_starting_round || 'sf';
           const bData = bracketInfo.bracket_data;
           const activeSlots: any[] =
             startingRound === 'qf'
               ? [
-                  ...(bData.qfMatches || []),
-                  ...(bData.sfMatches || []),
-                  bData.thirdPlaceMatch,
-                  bData.finalMatch,
-                ]
+                ...(bData.qfMatches || []),
+                ...(bData.sfMatches || []),
+                bData.thirdPlaceMatch,
+                bData.finalMatch,
+              ]
               : startingRound === 'final'
-              ? [bData.finalMatch]
-              : [
+                ? [bData.finalMatch]
+                : [
                   ...(bData.sfMatches || []),
                   bData.thirdPlaceMatch,
                   bData.finalMatch,
@@ -165,15 +254,21 @@ export class MatchService {
             );
 
             if (existingMatch) {
-              // Update team names/logos if existing has generic fallback names
-              if (
-                (!existingMatch.home_team_name ||
-                  existingMatch.home_team_name === 'รอระบุทีม' ||
-                  existingMatch.home_team_name === 'ทีมเหย้า') &&
-                t1Name !== '-'
-              ) {
+              // Update team names/logos if existing has generic fallback names or placeholder seed/feeder names
+              const isGenericHome =
+                !existingMatch.home_team_name ||
+                existingMatch.home_team_name === 'รอระบุทีม' ||
+                existingMatch.home_team_name === 'ทีมเหย้า' ||
+                /^(คู่ชนะ|คู่แพ้|ผู้ชนะ|ผู้แพ้|ทีมชนะ|ทีมแพ้)\s*/i.test(existingMatch.home_team_name) ||
+                /^[A-Z]\d+$/i.test(existingMatch.home_team_name);
+
+              if ((isGenericHome || !existingMatch.team1?.id) && t1Name !== '-') {
                 existingMatch.home_team_name = t1Name;
+                if (slot.team1?.id) {
+                  existingMatch.home_team_id = String(slot.team1.id);
+                }
                 if (existingMatch.team1) {
+                  if (slot.team1?.id) existingMatch.team1.id = String(slot.team1.id);
                   existingMatch.team1.name = t1Name;
                   existingMatch.team1.shortName =
                     slot.team1?.shortName || t1Name.slice(0, 3).toUpperCase();
@@ -182,14 +277,20 @@ export class MatchService {
                 }
               }
 
-              if (
-                (!existingMatch.away_team_name ||
-                  existingMatch.away_team_name === 'รอระบุทีม' ||
-                  existingMatch.away_team_name === 'ทีมเยือน') &&
-                t2Name !== '-'
-              ) {
+              const isGenericAway =
+                !existingMatch.away_team_name ||
+                existingMatch.away_team_name === 'รอระบุทีม' ||
+                existingMatch.away_team_name === 'ทีมเยือน' ||
+                /^(คู่ชนะ|คู่แพ้|ผู้ชนะ|ผู้แพ้|ทีมชนะ|ทีมแพ้)\s*/i.test(existingMatch.away_team_name) ||
+                /^[A-Z]\d+$/i.test(existingMatch.away_team_name);
+
+              if ((isGenericAway || !existingMatch.team2?.id) && t2Name !== '-') {
                 existingMatch.away_team_name = t2Name;
+                if (slot.team2?.id) {
+                  existingMatch.away_team_id = String(slot.team2.id);
+                }
                 if (existingMatch.team2) {
+                  if (slot.team2?.id) existingMatch.team2.id = String(slot.team2.id);
                   existingMatch.team2.name = t2Name;
                   existingMatch.team2.shortName =
                     slot.team2?.shortName || t2Name.slice(0, 3).toUpperCase();
@@ -206,6 +307,11 @@ export class MatchService {
               continue;
             }
 
+            // If knockout matches already exist in DB, do not synthesize missing/deleted matches
+            if (hasKnockoutMatchesInDb) {
+              continue;
+            }
+
             const matchNumber = targetMatchNumber || enriched.length + 1;
             const venue = slot.venue || 'สนามหลัก';
             const roundName = slot.roundName || 'รอบน็อคเอาท์';
@@ -216,13 +322,13 @@ export class MatchService {
             const homeIdStr = slot.team1?.id
               ? String(slot.team1.id)
               : t1Name !== '-'
-              ? t1Name
-              : 'รอระบุทีม';
+                ? t1Name
+                : 'รอระบุทีม';
             const awayIdStr = slot.team2?.id
               ? String(slot.team2.id)
               : t2Name !== '-'
-              ? t2Name
-              : 'รอระบุทีม';
+                ? t2Name
+                : 'รอระบุทีม';
 
             const team1Obj = {
               id: homeIdStr,
@@ -251,10 +357,10 @@ export class MatchService {
                 : rawStatus === 'COMPLETED' ||
                   rawStatus === 'FT' ||
                   rawStatus === 'FINISHED'
-                ? 'FT'
-                : rawStatus === 'POSTPONED'
-                ? 'POSTPONED'
-                : 'UPCOMING';
+                  ? 'FT'
+                  : rawStatus === 'POSTPONED'
+                    ? 'POSTPONED'
+                    : 'UPCOMING';
 
             const score1 =
               slot.team1?.score !== null && slot.team1?.score !== undefined
@@ -347,7 +453,7 @@ export class MatchService {
       matchRepository.getEventsByMatch(tournamentId, matchId),
     ]);
 
-    const [enriched] = this.enrichMatches([match], teams);
+    const [enriched] = this.enrichMatches([match], teams, events);
     return { ...enriched, events };
   }
 
@@ -446,9 +552,9 @@ export class MatchService {
 
       const cleanId =
         m.id &&
-        !String(m.id).startsWith('bracket_') &&
-        !String(m.id).startsWith('temp_') &&
-        !String(m.id).startsWith('match-gen-')
+          !String(m.id).startsWith('bracket_') &&
+          !String(m.id).startsWith('temp_') &&
+          !String(m.id).startsWith('match-gen-')
           ? m.id
           : undefined;
 
@@ -479,11 +585,16 @@ export class MatchService {
     // Sync schedule changes (or Clear All) back into tournament.bracket_data
     try {
       const { tournamentService } = await import('./tournament.service.ts');
-      await tournamentService.syncBracketScheduleFromMatches(
-        tournamentId,
-        knockoutScheduleUpdates,
-        matchesPayload.length === 0
-      );
+      if (matchesPayload.length === 0 || knockoutScheduleUpdates.length === 0) {
+        await tournamentService.syncBracketScheduleFromMatches(tournamentId, [], true);
+      } else {
+        await tournamentService.syncBracketScheduleFromMatches(
+          tournamentId,
+          knockoutScheduleUpdates,
+          false
+        );
+        await tournamentService.syncBracketFromStandingsAndResults(tournamentId);
+      }
     } catch (err) {
       console.warn('[syncMatches] Could not update bracket_data schedule:', err);
     }
@@ -565,7 +676,7 @@ export class MatchService {
       away_score?: number | null;
       home_penalty_score?: number | null;
       away_penalty_score?: number | null;
-      status?: 'SCHEDULED' | 'UPCOMING' | 'LIVE' | 'COMPLETED' | 'FT' | 'POSTPONED';
+      status?: 'SCHEDULED' | 'UPCOMING' | 'LIVE' | 'COMPLETED' | 'FINISHED' | 'FT' | 'POSTPONED';
       match_date?: string | null;
       match_time?: string | null;
       venue?: string | null;
@@ -603,15 +714,26 @@ export class MatchService {
       delete updateFields.pitch;
     }
 
-    if (!payload.status && payload.home_score !== undefined && payload.home_score !== null && payload.away_score !== undefined && payload.away_score !== null) {
+    if (payload.status) {
+      const s = payload.status.toUpperCase();
+      if (s === 'FINISHED' || s === 'FT' || s === 'COMPLETED') {
+        updateFields.status = 'COMPLETED';
+      } else if (s === 'LIVE') {
+        updateFields.status = 'LIVE';
+      } else if (s === 'SCHEDULED' || s === 'UPCOMING') {
+        updateFields.status = 'SCHEDULED';
+      } else {
+        updateFields.status = s as any;
+      }
+    } else if (payload.home_score !== undefined && payload.home_score !== null && payload.away_score !== undefined && payload.away_score !== null) {
       updateFields.status = 'COMPLETED';
     }
 
     const updatedMatch = await matchRepository.update(tournamentId, matchId, updateFields);
 
-    if (existing.stage && existing.stage !== 'group') {
-      try {
-        const { tournamentService } = await import('./tournament.service.ts');
+    try {
+      const { tournamentService } = await import('./tournament.service.ts');
+      if (existing.stage && existing.stage !== 'group') {
         await tournamentService.syncBracketScheduleFromMatches(tournamentId, [
           {
             id: matchId,
@@ -622,9 +744,11 @@ export class MatchService {
             venue: updatedMatch.venue || existing.venue || 'สนาม 1',
           },
         ]);
-      } catch (err) {
-        console.warn('[updateMatchScore] Could not sync knockout schedule to bracket_data:', err);
       }
+      // Automatically advance bracket winners/losers and seed from standings
+      await tournamentService.syncBracketFromStandingsAndResults(tournamentId);
+    } catch (err) {
+      console.warn('[updateMatchScore] Could not sync bracket from standings/results:', err);
     }
 
     return this.getMatchById(tournamentId, matchId);
@@ -638,7 +762,7 @@ export class MatchService {
       player_id?: string | null;
       player_number?: string | null;
       event_type: 'goal' | 'yellow_card' | 'red_card' | 'sub' | 'penalty';
-      minute: number;
+      minute?: number;
       extra_minute?: number;
       detail?: string | null;
     }
@@ -668,6 +792,244 @@ export class MatchService {
       matches,
       definedGroupNames
     );
+  }
+
+  async syncMatchGoals(
+    tournamentId: string,
+    matchId: string,
+    goals: Array<{
+      team_id?: string | number | null;
+      player_id?: string | null;
+      player_number?: string | null;
+      player_name?: string | null;
+      detail?: string | null;
+    }>
+  ): Promise<MatchEvent[]> {
+    const match = await matchRepository.findById(tournamentId, matchId);
+    if (!match) {
+      throw AppError.notFound(`Match "${matchId}" not found in tournament "${tournamentId}"`);
+    }
+
+    // ลบ goal events เดิมของคู่นี้
+    try {
+      await matchRepository.deleteEventsByMatchAndType(tournamentId, String(matchId), 'goal');
+    } catch (delErr: any) {
+      console.warn('[syncMatchGoals] Warning: Could not delete old events (possible RLS):', delErr?.message);
+    }
+
+    // ดึงรายชื่อนักเตะของทัวร์นาเมนต์เพื่อผูกชื่อตามเบอร์เสื้อ
+    const allPlayers = await playerRepository.findByTournament(tournamentId).catch(() => []);
+
+    const createdEvents: MatchEvent[] = [];
+    for (const g of goals) {
+      const teamIdStr = g.team_id ? String(g.team_id) : null;
+      const numStr = g.player_number ? String(g.player_number).trim() : null;
+
+      // ค้นหานักเตะในทีมที่มีเบอร์ตรงกัน
+      let matchedPlayer = null;
+      if (teamIdStr && numStr) {
+        matchedPlayer = allPlayers.find(
+          (p) => String(p.team_id) === teamIdStr && String(p.number).trim() === numStr
+        );
+      } else if (g.player_id) {
+        matchedPlayer = allPlayers.find((p) => String(p.id) === String(g.player_id));
+      }
+
+      const pId = matchedPlayer?.id ? String(matchedPlayer.id) : (g.player_id || null);
+      const detailStr =
+        matchedPlayer?.name ||
+        g.player_name ||
+        g.detail ||
+        (numStr ? `ผู้เล่นหมายเลข ${numStr}` : 'ผู้ทำประตู');
+
+      try {
+        const event = await matchRepository.addEvent({
+          tournament_id: String(match.tournament_id || tournamentId),
+          match_id: String(matchId),
+          team_id: teamIdStr,
+          player_id: pId,
+          player_number: numStr,
+          event_type: 'goal',
+          detail: detailStr,
+        });
+        createdEvents.push(event);
+      } catch (addErr: any) {
+        console.warn('[syncMatchGoals] Warning: Could not insert event into match_events (possible RLS):', addErr?.message);
+        // Fallback in-memory event so response remains consistent
+        createdEvents.push({
+          id: `tmp_${Date.now()}_${Math.random()}`,
+          tournament_id: String(match.tournament_id || tournamentId),
+          match_id: String(matchId),
+          team_id: teamIdStr,
+          player_id: pId,
+          player_number: numStr,
+          event_type: 'goal',
+          detail: detailStr,
+          created_at: new Date().toISOString(),
+        } as MatchEvent);
+      }
+    }
+
+    return createdEvents;
+  }
+
+  async syncMatchCards(
+    tournamentId: string,
+    matchId: string,
+    cards: Array<{
+      team_id?: string | number | null;
+      player_id?: string | null;
+      player_number?: string | null;
+      player_name?: string | null;
+      card_type: 'yellow_card' | 'red_card';
+      detail?: string | null;
+    }>
+  ): Promise<MatchEvent[]> {
+    const match = await matchRepository.findById(tournamentId, matchId);
+    if (!match) {
+      throw AppError.notFound(`Match "${matchId}" not found in tournament "${tournamentId}"`);
+    }
+
+    // ลบ card events เดิมของคู่นี้ (ทั้ง yellow_card และ red_card)
+    try {
+      await matchRepository.deleteEventsByMatchAndType(tournamentId, String(matchId), 'yellow_card');
+      await matchRepository.deleteEventsByMatchAndType(tournamentId, String(matchId), 'red_card');
+    } catch (delErr: any) {
+      console.warn('[syncMatchCards] Warning: Could not delete old card events (possible RLS):', delErr?.message);
+    }
+
+    // ดึงรายชื่อนักเตะของทัวร์นาเมนต์เพื่อผูกชื่อตามเบอร์เสื้อ
+    const allPlayers = await playerRepository.findByTournament(tournamentId).catch(() => []);
+
+    const createdEvents: MatchEvent[] = [];
+    for (const c of cards) {
+      const teamIdStr = c.team_id ? String(c.team_id) : null;
+      const numStr = c.player_number ? String(c.player_number).trim() : null;
+
+      let matchedPlayer = null;
+      if (teamIdStr && numStr) {
+        matchedPlayer = allPlayers.find(
+          (p) => String(p.team_id) === teamIdStr && String(p.number).trim() === numStr
+        );
+      } else if (c.player_id) {
+        matchedPlayer = allPlayers.find((p) => String(p.id) === String(c.player_id));
+      }
+
+      const pId = matchedPlayer?.id ? String(matchedPlayer.id) : (c.player_id || null);
+      const cardLabel = c.card_type === 'yellow_card' ? 'ใบเหลือง' : 'ใบแดง';
+      const detailStr =
+        matchedPlayer?.name ||
+        c.player_name ||
+        c.detail ||
+        (numStr ? `${cardLabel} เบอร์ ${numStr}` : cardLabel);
+
+      try {
+        const event = await matchRepository.addEvent({
+          tournament_id: String(match.tournament_id || tournamentId),
+          match_id: String(matchId),
+          team_id: teamIdStr,
+          player_id: pId,
+          player_number: numStr,
+          event_type: c.card_type,
+          detail: detailStr,
+        });
+        createdEvents.push(event);
+      } catch (addErr: any) {
+        console.warn('[syncMatchCards] Warning: Could not insert card event (possible RLS):', addErr?.message);
+        createdEvents.push({
+          id: `tmp_${Date.now()}_${Math.random()}`,
+          tournament_id: String(match.tournament_id || tournamentId),
+          match_id: String(matchId),
+          team_id: teamIdStr,
+          player_id: pId,
+          player_number: numStr,
+          event_type: c.card_type,
+          detail: detailStr,
+          created_at: new Date().toISOString(),
+        } as MatchEvent);
+      }
+    }
+
+    return createdEvents;
+  }
+
+  async getTopScorers(tournamentId: string, limit: number = 10): Promise<any[]> {
+    const [goalEvents, teams, players] = await Promise.all([
+      matchRepository.getGoalEventsByTournament(tournamentId),
+      teamRepository.findByTournament(tournamentId),
+      playerRepository.findByTournament(tournamentId).catch(() => []),
+    ]);
+
+    const teamMap = new Map<string, any>();
+    teams.forEach((t) => teamMap.set(String(t.id), t));
+
+    const playerMap = new Map<string, any>();
+    const playerByTeamAndNum = new Map<string, any>();
+    players.forEach((p) => {
+      playerMap.set(String(p.id), p);
+      if (p.team_id && p.number !== null && p.number !== undefined) {
+        playerByTeamAndNum.set(`${p.team_id}_${String(p.number).trim()}`, p);
+      }
+    });
+
+    const scorerMap = new Map<string, {
+      id: string;
+      name: string;
+      number: string;
+      teamId: string;
+      teamName: string;
+      goals: number;
+    }>();
+
+    for (const evt of goalEvents) {
+      const teamId = evt.team_id ? String(evt.team_id) : '';
+      const team = teamMap.get(teamId);
+      const teamName = team?.name || 'ไม่ระบุทีม';
+
+      let playerId = evt.player_id || '';
+      let playerName = evt.detail || '';
+      let playerNumber = evt.player_number ? String(evt.player_number).trim() : '';
+
+      // เชื่อมโยงเบอร์กับชื่อนักเตะ
+      let matchedPlayer = null;
+      if (playerId && playerMap.has(playerId)) {
+        matchedPlayer = playerMap.get(playerId);
+      } else if (teamId && playerNumber && playerByTeamAndNum.has(`${teamId}_${playerNumber}`)) {
+        matchedPlayer = playerByTeamAndNum.get(`${teamId}_${playerNumber}`);
+      }
+
+      if (matchedPlayer) {
+        playerId = String(matchedPlayer.id);
+        playerName = matchedPlayer.name || playerName;
+        playerNumber = matchedPlayer.number !== null && matchedPlayer.number !== undefined
+          ? String(matchedPlayer.number).trim()
+          : playerNumber;
+      }
+
+      const key = playerId || `${teamId}_${playerNumber || playerName}`;
+      if (!scorerMap.has(key)) {
+        scorerMap.set(key, {
+          id: key,
+          name: playerName || (playerNumber ? `ผู้เล่นหมายเลข ${playerNumber}` : 'ผู้เล่นไม่ระบุชื่อ'),
+          number: playerNumber,
+          teamId,
+          teamName,
+          goals: 0,
+        });
+      }
+
+      const item = scorerMap.get(key)!;
+      item.goals += 1;
+    }
+
+    const list = Array.from(scorerMap.values())
+      .filter((s) => s.goals > 0)
+      .sort((a, b) => b.goals - a.goals);
+
+    return list.slice(0, limit).map((s, idx) => ({
+      ...s,
+      rank: idx + 1,
+    }));
   }
 }
 

@@ -5,18 +5,26 @@ export type KnockoutFilterRound = 'all' | 'qf' | 'sf' | 'final';
 export interface KnockoutFilterTabsProps {
   selectedRound: KnockoutFilterRound;
   onSelectRound: (round: KnockoutFilterRound) => void;
+  startingRound?: 'qf' | 'sf' | 'final';
 }
 
 export const KnockoutFilterTabs: React.FC<KnockoutFilterTabsProps> = ({
   selectedRound,
   onSelectRound,
+  startingRound = 'sf',
 }) => {
-  const filterOptions: { id: KnockoutFilterRound; label: string }[] = [
+  const allOptions: { id: KnockoutFilterRound; label: string }[] = [
     { id: 'all', label: 'ทุกรอบ (All Bracket)' },
     { id: 'qf', label: 'รอบ 8 ทีม (QF)' },
     { id: 'sf', label: 'รอบรองฯ (SF)' },
     { id: 'final', label: 'รอบชิงฯ (Final)' },
   ];
+
+  const filterOptions = allOptions.filter((opt) => {
+    if (opt.id === 'qf' && startingRound !== 'qf') return false;
+    if (opt.id === 'sf' && startingRound === 'final') return false;
+    return true;
+  });
 
   return (
     <div className="w-full flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1">

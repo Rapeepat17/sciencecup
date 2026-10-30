@@ -356,6 +356,11 @@ export async function fetchDatabase(
           penaltyScore1: m.home_penalty_score ?? null,
           penaltyScore2: m.away_penalty_score ?? null,
           status: uiStatus as any,
+          goalPlayers1: m.home_scorers || m.goalPlayers1 || '',
+          goalPlayers2: m.away_scorers || m.goalPlayers2 || '',
+          cardsT1: m.cardsT1 || null,
+          cardsT2: m.cardsT2 || null,
+          events: m.events || [],
         };
       });
 

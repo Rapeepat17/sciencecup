@@ -1403,7 +1403,13 @@ export default function App() {
               onOpenUserPortal={() => navigateToUserTab(userPortalTab)}
             />
           )}
-          {activeView === 'dashboard' && <AdminDashboardPage />}
+          {activeView === 'dashboard' && (
+            <AdminDashboardPage
+              currentTournamentId={currentTournamentId}
+              tournamentName={tournamentName}
+              onNavigate={(view) => navigateToAdminView(view as any)}
+            />
+          )}
           {activeView === 'create-tournament' && <AdminCreateTournamentPage />}
           {activeView === 'teams' && (
             <AdminTeamsPage
@@ -1522,6 +1528,8 @@ export default function App() {
             {userPortalTab === 'bracket' && (
               <KnockoutPage
                 tournamentId={currentTournamentId}
+                tournamentName={tournamentName}
+                startingRound={knockoutStartingRound}
                 qfMatches={qfMatches}
                 sfMatches={sfMatches}
                 finalMatch={finalMatch}

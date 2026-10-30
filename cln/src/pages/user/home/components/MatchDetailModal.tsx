@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, MapPin, Calendar, Clock, CheckCircle2, Info } from 'lucide-react';
 import { Match } from '../../../../types';
 import { TeamLogo } from '../../../../components/TeamLogo';
-import { SoccerBall } from '../../../../components/icons/SoccerBall';
+import { matchService } from '../../../../services/matchService';
 
 export interface MatchDetailModalProps {
   match: Match | null;
@@ -13,48 +13,172 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
   match,
   onClose,
 }) => {
+  const [activeMatch, setActiveMatch] = useState<Match | null>(match);
+
+  useEffect(() => {
+    setActiveMatch(match);
+  }, [match]);
+
+  // Fetch fresh match events/details when modal opens to ensure scorers are always up-to-date
+  useEffect(() => {
+    if (!match?.id || !match?.tournamentId) return;
+
+    let isSubscribed = true;
+    matchService
+      .getById(match.tournamentId, match.id)
+      .then((res: any) => {
+        if (!isSubscribed || !res) return;
+        setActiveMatch((prev) => ({
+          ...(prev || match),
+          events: res.events || prev?.events || [],
+          goalPlayers1: res.goalPlayers1 || res.home_scorers || prev?.goalPlayers1 || '',
+          goalPlayers2: res.goalPlayers2 || res.away_scorers || prev?.goalPlayers2 || '',
+          cardsT1: res.cardsT1 || prev?.cardsT1,
+          cardsT2: res.cardsT2 || prev?.cardsT2,
+        }));
+      })
+      .catch((err) => {
+        console.warn('[MatchDetailModal] Could not fetch fresh match detail:', err);
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [match?.id, match?.tournamentId]);
+
   if (!match) return null;
 
-  const isLive = match.status === 'LIVE';
-  const isFT = match.status === 'FT';
-  const isUpcoming = match.status === 'UPCOMING' || (!isLive && !isFT);
+  const currentMatch = activeMatch || match;
+  const isLive = currentMatch.status === 'LIVE';
+  const isFT = currentMatch.status === 'FT';
+  const isUpcoming = currentMatch.status === 'UPCOMING' || (!isLive && !isFT);
 
-  const t1Name = match.team1?.name || 'ทีมเหย้า';
-  const t2Name = match.team2?.name || 'ทีมเยือน';
+  const t1Name = currentMatch.team1?.name || 'ทีมเหย้า';
+  const t2Name = currentMatch.team2?.name || 'ทีมเยือน';
 
   const isKnockout =
-    match.group === 'Knockout' ||
-    (match.round && !match.round.includes('รอบแบ่งกลุ่ม'));
+    currentMatch.group === 'Knockout' ||
+    (currentMatch.round && !currentMatch.round.includes('รอบแบ่งกลุ่ม'));
 
   const groupLabel = isKnockout
-    ? match.round || 'รอบน็อคเอาท์'
-    : match.group
-    ? match.group.startsWith('กลุ่ม') || match.group.startsWith('สาย')
-      ? match.group
-      : `กลุ่ม ${match.group}`
-    : match.round || 'รอบแบ่งกลุ่ม';
+    ? currentMatch.round || 'รอบน็อคเอาท์'
+    : currentMatch.group
+    ? currentMatch.group.startsWith('กลุ่ม') || currentMatch.group.startsWith('สาย')
+      ? currentMatch.group
+      : `กลุ่ม ${currentMatch.group}`
+    : currentMatch.round || 'รอบแบ่งกลุ่ม';
 
-  const formatGoalscorers = (goalDetails?: any[], goalPlayers?: string) => {
+  const formatGoalscorers = (
+    teamId?: string | number,
+    goalDetails?: any[],
+    goalPlayers?: string,
+    events?: any[]
+  ) => {
+    // 1. ถ้ามี events จาก Backend
+    if (events && events.length > 0) {
+      const teamGoalEvents = teamId
+        ? events.filter(
+            (e) => e.event_type === 'goal' && String(e.team_id) === String(teamId)
+          )
+        : [];
+      if (teamGoalEvents.length > 0) {
+        const nums = teamGoalEvents
+          .map((e) => (e.player_number ? String(e.player_number).trim() : ''))
+          .filter(Boolean);
+        if (nums.length > 0) {
+          return `เบอร์ ${nums.join(', ')}`;
+        }
+        return teamGoalEvents
+          .map((e) => e.detail || 'ผู้ทำประตู')
+          .filter(Boolean)
+          .join(', ');
+      }
+    }
+
+    // 2. ถ้ามี goalDetails
     if (Array.isArray(goalDetails) && goalDetails.length > 0) {
+      const nums = goalDetails
+        .map((g) => (g.playerNumber ? String(g.playerNumber).trim() : ''))
+        .filter(Boolean);
+      if (nums.length > 0) {
+        return `เบอร์ ${nums.join(', ')}`;
+      }
       return goalDetails
-        .map((g) => {
-          if (typeof g === 'string') return g;
-          if (g.playerName && g.playerNumber) return `${g.playerName} (#${g.playerNumber})`;
-          if (g.playerName) return g.playerName;
-          if (g.playerNumber) return `เบอร์ ${g.playerNumber}`;
-          return '';
-        })
+        .map((g) => g.playerName || '')
         .filter(Boolean)
         .join(', ');
     }
+
+    // 3. ถ้ามี goalPlayers string (เช่น "เบอร์ 10, เบอร์ 56" หรือ "10, 56")
     if (goalPlayers && goalPlayers.trim()) {
-      return goalPlayers;
+      const raw = goalPlayers.replace(/⚽/g, '').trim();
+      const numbers = raw
+        .split(',')
+        .map((s) => {
+          const match = s.match(/\d+/);
+          return match ? match[0] : s.trim().replace(/^ผู้เล่นหมายเลข\s*|^เบอร์\s*/, '');
+        })
+        .filter(Boolean);
+
+      if (numbers.length > 0) {
+        return `เบอร์ ${numbers.join(', ')}`;
+      }
+      return raw;
     }
+
     return '';
   };
 
-  const g1Str = formatGoalscorers(match.goalDetails1, match.goalPlayers1);
-  const g2Str = formatGoalscorers(match.goalDetails2, match.goalPlayers2);
+  const g1Str = formatGoalscorers(
+    currentMatch.team1?.id,
+    currentMatch.goalDetails1,
+    currentMatch.goalPlayers1 || (currentMatch as any).home_scorers,
+    currentMatch.events
+  );
+  const g2Str = formatGoalscorers(
+    currentMatch.team2?.id,
+    currentMatch.goalDetails2,
+    currentMatch.goalPlayers2 || (currentMatch as any).away_scorers,
+    currentMatch.events
+  );
+
+  const cT1 = currentMatch.cardsT1 || {
+    yellow: (currentMatch.events || []).filter(
+      (e) => e.event_type === 'yellow_card' && String(e.team_id) === String(currentMatch.team1?.id)
+    ).length,
+    red: (currentMatch.events || []).filter(
+      (e) => e.event_type === 'red_card' && String(e.team_id) === String(currentMatch.team1?.id)
+    ).length,
+    yellowPlayers: (currentMatch.events || [])
+      .filter((e) => e.event_type === 'yellow_card' && String(e.team_id) === String(currentMatch.team1?.id))
+      .map((e) => e.player_number)
+      .filter(Boolean)
+      .join(', '),
+    redPlayers: (currentMatch.events || [])
+      .filter((e) => e.event_type === 'red_card' && String(e.team_id) === String(currentMatch.team1?.id))
+      .map((e) => e.player_number)
+      .filter(Boolean)
+      .join(', '),
+  };
+
+  const cT2 = currentMatch.cardsT2 || {
+    yellow: (currentMatch.events || []).filter(
+      (e) => e.event_type === 'yellow_card' && String(e.team_id) === String(currentMatch.team2?.id)
+    ).length,
+    red: (currentMatch.events || []).filter(
+      (e) => e.event_type === 'red_card' && String(e.team_id) === String(currentMatch.team2?.id)
+    ).length,
+    yellowPlayers: (currentMatch.events || [])
+      .filter((e) => e.event_type === 'yellow_card' && String(e.team_id) === String(currentMatch.team2?.id))
+      .map((e) => e.player_number)
+      .filter(Boolean)
+      .join(', '),
+    redPlayers: (currentMatch.events || [])
+      .filter((e) => e.event_type === 'red_card' && String(e.team_id) === String(currentMatch.team2?.id))
+      .map((e) => e.player_number)
+      .filter(Boolean)
+      .join(', '),
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
@@ -63,7 +187,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
         <div className="flex items-center justify-between pb-3 border-b border-[#efeded]">
           <div className="flex items-center gap-2">
             <span className="font-display font-bold text-xs text-[#854d0e] bg-[#fef9c3] px-3 py-1 rounded-xl border border-[#fde68a]">
-              คู่ที่ {match.matchNumber || 1}
+              คู่ที่ {currentMatch.matchNumber || 1}
             </span>
             <span className="text-sm font-bold text-[#1b1c1c] ml-1">
               {groupLabel}
@@ -93,8 +217,8 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
             <div className="col-span-3 flex flex-col items-center min-w-0">
               <div className="p-1 rounded-full bg-white/10 ring-2 ring-white/20 shadow-lg mb-1.5 backdrop-blur-xs">
                 <TeamLogo
-                  id={match.team1?.id}
-                  logo={match.team1?.logo}
+                  id={currentMatch.team1?.id}
+                  logo={currentMatch.team1?.logo}
                   name={t1Name}
                   className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover bg-white"
                 />
@@ -112,13 +236,13 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
               {isLive || isFT ? (
                 <div className="flex flex-col items-center">
                   <div className="flex items-center gap-1 font-display font-black text-2xl sm:text-4xl text-amber-300 tracking-tight drop-shadow-[0_0_12px_rgba(251,191,36,0.35)]">
-                    <span>{match.score1}</span>
+                    <span>{currentMatch.score1}</span>
                     <span className="text-white/30 text-lg sm:text-2xl select-none">:</span>
-                    <span>{match.score2}</span>
+                    <span>{currentMatch.score2}</span>
                   </div>
-                  {match.penaltyScore1 !== undefined && match.penaltyScore2 !== undefined && (
+                  {currentMatch.penaltyScore1 !== undefined && currentMatch.penaltyScore2 !== undefined && (
                     <span className="text-[10px] text-amber-400 font-bold mt-1 bg-amber-950/40 px-2 py-0.5 rounded-full border border-amber-500/30">
-                      จุดโทษ ({match.penaltyScore1} - {match.penaltyScore2})
+                      จุดโทษ ({currentMatch.penaltyScore1} - {currentMatch.penaltyScore2})
                     </span>
                   )}
                 </div>
@@ -133,8 +257,8 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
             <div className="col-span-3 flex flex-col items-center min-w-0">
               <div className="p-1 rounded-full bg-white/10 ring-2 ring-white/20 shadow-lg mb-1.5 backdrop-blur-xs">
                 <TeamLogo
-                  id={match.team2?.id}
-                  logo={match.team2?.logo}
+                  id={currentMatch.team2?.id}
+                  logo={currentMatch.team2?.logo}
                   name={t2Name}
                   className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover bg-white"
                 />
@@ -163,7 +287,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
             )}
             {isUpcoming && (
               <span className="px-3.5 py-1 rounded-full text-xs font-semibold bg-black/40 text-amber-300 border border-amber-500/30 inline-flex items-center gap-1.5 backdrop-blur-xs">
-                <Clock className="w-3.5 h-3.5 text-amber-400" /> เริ่ม {match.timeStr ? `${match.timeStr} น.` : 'ตามกำหนดการ'}
+                <Clock className="w-3.5 h-3.5 text-amber-400" /> เริ่ม {currentMatch.timeStr ? `${currentMatch.timeStr} น.` : 'ตามกำหนดการ'}
               </span>
             )}
           </div>
@@ -173,11 +297,11 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
         <div className="bg-[#faf9f8] p-3 rounded-2xl border border-[#efeded] flex flex-wrap items-center justify-between gap-2 text-xs text-[#4b4737]">
           <div className="flex items-center gap-1.5 font-medium">
             <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span className="text-[#1b1c1c] font-semibold">{match.venue || 'สนามหลัก'}</span>
+            <span className="text-[#1b1c1c] font-semibold">{currentMatch.venue || 'สนามหลัก'}</span>
           </div>
           <div className="flex items-center gap-1.5 font-medium text-[11px] text-[#716e68]">
             <Calendar className="w-3.5 h-3.5 text-[#716e68] shrink-0" />
-            <span>{match.dateStr || 'ยังไม่ระบุวันที่'}</span>
+            <span>{currentMatch.dateStr || 'ยังไม่ระบุวันที่'}</span>
           </div>
         </div>
 
@@ -187,8 +311,8 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
           <div className="p-3.5 bg-[#faf9f8] rounded-2xl border border-[#efeded] space-y-2">
             <div className="flex items-center gap-2 pb-1.5 border-b border-[#efeded]">
               <TeamLogo
-                id={match.team1?.id}
-                logo={match.team1?.logo}
+                id={currentMatch.team1?.id}
+                logo={currentMatch.team1?.logo}
                 name={t1Name}
                 className="w-4 h-4 rounded-full object-cover shrink-0"
               />
@@ -200,7 +324,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
             {/* Goals */}
             <div className="space-y-1">
               <span className="text-[11px] font-semibold text-[#716e68] flex items-center gap-1">
-                <SoccerBall className="w-3 h-3 text-emerald-600 shrink-0" /> ผู้ทำประตู:
+                ผู้ทำประตู:
               </span>
               {g1Str ? (
                 <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
@@ -213,19 +337,19 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
 
             {/* Cards */}
             <div className="pt-1 border-t border-[#f0eeeb] flex flex-wrap items-center gap-2 text-[11px]">
-              {(match.cardsT1?.yellow || 0) > 0 && (
+              {(cT1.yellow || 0) > 0 && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200 font-semibold">
                   <span className="w-2 h-3 bg-amber-400 rounded-xs inline-block shadow-2xs" />
-                  {match.cardsT1?.yellow} ใบเหลือง {match.cardsT1?.yellowPlayers ? `(เบอร์ ${match.cardsT1.yellowPlayers})` : ''}
+                  {cT1.yellow} ใบเหลือง {cT1.yellowPlayers ? `(เบอร์ ${cT1.yellowPlayers})` : ''}
                 </span>
               )}
-              {(match.cardsT1?.red || 0) > 0 && (
+              {(cT1.red || 0) > 0 && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-900 border border-rose-200 font-semibold">
                   <span className="w-2 h-3 bg-rose-500 rounded-xs inline-block shadow-2xs" />
-                  {match.cardsT1?.red} ใบแดง {match.cardsT1?.redPlayers ? `(เบอร์ ${match.cardsT1.redPlayers})` : ''}
+                  {cT1.red} ใบแดง {cT1.redPlayers ? `(เบอร์ ${cT1.redPlayers})` : ''}
                 </span>
               )}
-              {(match.cardsT1?.yellow || 0) === 0 && (match.cardsT1?.red || 0) === 0 && (
+              {(cT1.yellow || 0) === 0 && (cT1.red || 0) === 0 && (
                 <span className="text-[10px] text-[#888580]">ไม่มีใบเตือน</span>
               )}
             </div>
@@ -235,8 +359,8 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
           <div className="p-3.5 bg-[#faf9f8] rounded-2xl border border-[#efeded] space-y-2">
             <div className="flex items-center gap-2 pb-1.5 border-b border-[#efeded]">
               <TeamLogo
-                id={match.team2?.id}
-                logo={match.team2?.logo}
+                id={currentMatch.team2?.id}
+                logo={currentMatch.team2?.logo}
                 name={t2Name}
                 className="w-4 h-4 rounded-full object-cover shrink-0"
               />
@@ -248,7 +372,7 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
             {/* Goals */}
             <div className="space-y-1">
               <span className="text-[11px] font-semibold text-[#716e68] flex items-center gap-1">
-                <SoccerBall className="w-3 h-3 text-emerald-600 shrink-0" /> ผู้ทำประตู:
+                ผู้ทำประตู:
               </span>
               {g2Str ? (
                 <span className="inline-block px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
@@ -261,19 +385,19 @@ export const MatchDetailModal: React.FC<MatchDetailModalProps> = ({
 
             {/* Cards */}
             <div className="pt-1 border-t border-[#f0eeeb] flex flex-wrap items-center gap-2 text-[11px]">
-              {(match.cardsT2?.yellow || 0) > 0 && (
+              {(cT2.yellow || 0) > 0 && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200 font-semibold">
                   <span className="w-2 h-3 bg-amber-400 rounded-xs inline-block shadow-2xs" />
-                  {match.cardsT2?.yellow} ใบเหลือง {match.cardsT2?.yellowPlayers ? `(เบอร์ ${match.cardsT2.yellowPlayers})` : ''}
+                  {cT2.yellow} ใบเหลือง {cT2.yellowPlayers ? `(เบอร์ ${cT2.yellowPlayers})` : ''}
                 </span>
               )}
-              {(match.cardsT2?.red || 0) > 0 && (
+              {(cT2.red || 0) > 0 && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-900 border border-rose-200 font-semibold">
                   <span className="w-2 h-3 bg-rose-500 rounded-xs inline-block shadow-2xs" />
-                  {match.cardsT2?.red} ใบแดง {match.cardsT2?.redPlayers ? `(เบอร์ ${match.cardsT2.redPlayers})` : ''}
+                  {cT2.red} ใบแดง {cT2.redPlayers ? `(เบอร์ ${cT2.redPlayers})` : ''}
                 </span>
               )}
-              {(match.cardsT2?.yellow || 0) === 0 && (match.cardsT2?.red || 0) === 0 && (
+              {(cT2.yellow || 0) === 0 && (cT2.red || 0) === 0 && (
                 <span className="text-[10px] text-[#888580]">ไม่มีใบเตือน</span>
               )}
             </div>

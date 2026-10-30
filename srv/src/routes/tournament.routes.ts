@@ -15,6 +15,7 @@ import {
   autoSeedBracket,
   getStandings,
 } from '../controllers/tournament.controller.ts';
+import { getTopScorers } from '../controllers/match.controller.ts';
 import { authenticate, requireTournamentRole } from '../middleware/auth.middleware.ts';
 import { validate } from '../middleware/validate.middleware.ts';
 import {
@@ -31,6 +32,7 @@ router.get('/', listTournaments);
 router.get('/:tournamentId', validate({ params: tournamentIdParamSchema }), getTournament);
 router.get('/:tournamentId/groups', validate({ params: tournamentIdParamSchema }), getGroups);
 router.get('/:tournamentId/standings', validate({ params: tournamentIdParamSchema }), getStandings);
+router.get('/:tournamentId/top-scorers', validate({ params: tournamentIdParamSchema }), getTopScorers);
 router.get('/:tournamentId/bracket', validate({ params: tournamentIdParamSchema }), getBracket);
 
 // Protected routes (require auth)

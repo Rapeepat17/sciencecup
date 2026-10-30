@@ -116,13 +116,26 @@ export class MatchRepository {
 
   async update(tournamentId: string, matchId: string | number, payload: Partial<Match>): Promise<Match> {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    const updateData: Record<string, any> = { ...payload, updated_at: new Date().toISOString() };
+
+    let { data, error } = await supabase
       .from('matches')
-      .update({ ...payload, updated_at: new Date().toISOString() })
-      .eq('tournament_id', tournamentId)
+      .update(updateData)
       .eq('id', matchId)
       .select()
-      .single();
+      .maybeSingle();
+
+    if (!data && !error) {
+      const retry = await supabase
+        .from('matches')
+        .update(updateData)
+        .eq('tournament_id', tournamentId)
+        .eq('id', matchId)
+        .select()
+        .maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       const code = error?.code || '';
@@ -143,16 +156,22 @@ export class MatchRepository {
         const retryRes = await supabase
           .from('matches')
           .update({ ...sanitized, updated_at: new Date().toISOString() })
-          .eq('tournament_id', tournamentId)
           .eq('id', matchId)
           .select()
-          .single();
-        if (!retryRes.error) {
+          .maybeSingle();
+        if (!retryRes.error && retryRes.data) {
           return retryRes.data as Match;
         }
       }
       throw error;
     }
+
+    if (!data) {
+      const fetched = await this.findById(tournamentId, matchId);
+      if (fetched) return fetched;
+      throw new Error(`Match "${matchId}" not found for update`);
+    }
+
     return data as Match;
   }
 
@@ -344,12 +363,21 @@ export class MatchRepository {
 
   async getEventsByMatch(tournamentId: string, matchId: string): Promise<MatchEvent[]> {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from('match_events')
       .select('*')
-      .eq('tournament_id', tournamentId)
       .eq('match_id', matchId)
-      .order('minute', { ascending: true });
+      .order('created_at', { ascending: true });
+
+    const { data, error } = await query;
+    if (error && error.code === '42703') {
+      // Fallback if created_at does not exist
+      const fallback = await supabase
+        .from('match_events')
+        .select('*')
+        .eq('match_id', matchId);
+      return (fallback.data as MatchEvent[]) || [];
+    }
 
     if (error) {
       throw error;
@@ -359,16 +387,114 @@ export class MatchRepository {
 
   async addEvent(event: Omit<MatchEvent, 'id' | 'created_at'>): Promise<MatchEvent> {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase
+    const payload: any = { ...event };
+
+    // ลบคอลัมน์ minute / extra_minute ออกถ้าไม่มีค่า เพื่อป้องกัน column does not exist
+    if (payload.minute === undefined || payload.minute === 0) {
+      delete payload.minute;
+    }
+    if (payload.extra_minute === undefined || payload.extra_minute === 0) {
+      delete payload.extra_minute;
+    }
+
+    let { data, error } = await supabase
       .from('match_events')
-      .insert(event)
+      .insert(payload)
       .select()
       .single();
+
+    if (error && error.code === '42703') {
+      // หากยังติด column does not exist ให้ตัด minute และ extra_minute ออกให้หมด
+      delete payload.minute;
+      delete payload.extra_minute;
+      const retry = await supabase
+        .from('match_events')
+        .insert(payload)
+        .select()
+        .single();
+      if (!retry.error) {
+        return retry.data as MatchEvent;
+      }
+      error = retry.error;
+    }
 
     if (error) {
       throw error;
     }
     return data as MatchEvent;
+  }
+
+  async deleteEventsByMatchAndType(
+    tournamentId: string,
+    matchId: string,
+    eventType?: string
+  ): Promise<void> {
+    const supabase = getSupabaseClient();
+    let query = supabase
+      .from('match_events')
+      .delete()
+      .eq('match_id', matchId);
+
+    if (eventType) {
+      query = query.eq('event_type', eventType);
+    }
+
+    const { error } = await query;
+    if (error) {
+      throw error;
+    }
+  }
+
+  async getGoalEventsByTournament(tournamentId: string): Promise<MatchEvent[]> {
+    const supabase = getSupabaseClient();
+    const tourneyIds =
+      tournamentId === '1000' || tournamentId === 'sci_cup_main'
+        ? ['1000', 'sci_cup_main']
+        : [tournamentId];
+
+    const { data, error } = await supabase
+      .from('match_events')
+      .select('*')
+      .eq('event_type', 'goal')
+      .in('tournament_id', tourneyIds);
+
+    if (error) {
+      const fallback = await supabase
+        .from('match_events')
+        .select('*')
+        .eq('event_type', 'goal')
+        .eq('tournament_id', tournamentId);
+      if (!fallback.error && fallback.data) {
+        return fallback.data as MatchEvent[];
+      }
+      throw error;
+    }
+    return (data as MatchEvent[]) || [];
+  }
+
+  async getAllEventsByTournament(tournamentId: string): Promise<MatchEvent[]> {
+    const supabase = getSupabaseClient();
+    const tourneyIds =
+      tournamentId === '1000' || tournamentId === 'sci_cup_main'
+        ? ['1000', 'sci_cup_main']
+        : [tournamentId];
+
+    const { data, error } = await supabase
+      .from('match_events')
+      .select('*')
+      .in('tournament_id', tourneyIds);
+
+    if (error) {
+      const fallback = await supabase
+        .from('match_events')
+        .select('*')
+        .eq('tournament_id', tournamentId);
+      if (!fallback.error && fallback.data) {
+        return fallback.data as MatchEvent[];
+      }
+      throw error;
+    }
+    return (data as MatchEvent[]) || [];
   }
 }
 
