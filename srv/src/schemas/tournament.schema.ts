@@ -24,6 +24,7 @@ export const updateTournamentSchema = createTournamentSchema
   .omit({ id: true })
   .partial()
   .extend({
+    status: z.string().optional(),
     is_bracket_locked: z.boolean().optional(),
     is_knockout_created: z.boolean().optional(),
     bracket_data: z.record(z.string(), z.any()).optional(),

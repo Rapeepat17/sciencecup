@@ -104,9 +104,11 @@ export interface TopScorer {
   rank: number;
   name: string;
   initials: string;
-  number: number;
+  number: number | string;
   position?: string;
+  teamId?: string;
   teamName: string;
+  teamLogo?: string;
   group: string;
   matchesPlayed: number;
   goals: number;
@@ -172,7 +174,7 @@ export interface TournamentDatabaseData {
   updatedAt?: number;
 }
 
-export type AppMode = 'admin' | 'user';
+export type AppMode = 'admin' | 'user' | 'login';
 
 export type ActiveView =
   | 'tournaments'

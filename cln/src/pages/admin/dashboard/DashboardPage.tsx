@@ -157,6 +157,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           }>();
 
           mappedMatches.forEach((m) => {
+            const isGenericName = (val?: string | null) => {
+              if (!val || !val.trim()) return true;
+              const t = val.trim();
+              return (
+                t.startsWith('ผู้เล่นเบอร์') ||
+                t.startsWith('ผู้เล่นหมายเลข') ||
+                t.startsWith('เบอร์') ||
+                t === 'ผู้ทำประตู' ||
+                t === 'ผู้เล่นไม่ระบุชื่อ' ||
+                /^\d+$/.test(t)
+              );
+            };
+
             const processScorers = (team: Team, rawStr?: string, eventsList?: any[]) => {
               // 1. จาก events ถ้ามี
               if (eventsList && eventsList.length > 0) {
@@ -165,7 +178,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   .forEach((e) => {
                     const num = e.player_number ? String(e.player_number).trim() : '';
                     const p = team.players?.find((pl) => String(pl.number).trim() === num);
-                    const pName = p?.name || e.detail || (num ? `ผู้เล่นหมายเลข ${num}` : 'ผู้เล่นไม่ระบุชื่อ');
+                    const hasRealName = p?.name && !isGenericName(p.name);
+                    const detailHasReal = e.detail && !isGenericName(e.detail);
+                    const pName = hasRealName ? p.name : detailHasReal ? e.detail : (num ? `ผู้เล่นหมายเลข ${num}` : 'ผู้เล่นไม่ระบุชื่อ');
                     const key = `${team.id}_${num || pName}`;
 
                     if (!fallbackMap.has(key)) {
@@ -186,10 +201,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 rawStr.split(',').forEach((s) => {
                   const trimmed = s.trim();
                   if (!trimmed) return;
-                  const numMatch = trimmed.match(/\d+/);
+                  const countMatch = trimmed.match(/\((\d+)\)/);
+                  const count = countMatch ? parseInt(countMatch[1], 10) : 1;
+                  const cleaned = trimmed.replace(/\(\d+\)/, '').trim();
+                  const numMatch = cleaned.match(/\d+/);
                   const num = numMatch ? numMatch[0] : '';
                   const p = team.players?.find((pl) => String(pl.number).trim() === num);
-                  const pName = p?.name || (num ? `ผู้เล่นหมายเลข ${num}` : trimmed);
+                  const hasRealName = p?.name && !isGenericName(p.name);
+                  const pName = hasRealName ? p.name : (num ? `ผู้เล่นหมายเลข ${num}` : cleaned);
                   const key = `${team.id}_${num || pName}`;
 
                   if (!fallbackMap.has(key)) {
@@ -203,7 +222,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       goals: 0,
                     });
                   }
-                  fallbackMap.get(key)!.goals += 1;
+                  fallbackMap.get(key)!.goals += (isNaN(count) ? 1 : count);
                 });
               }
             };

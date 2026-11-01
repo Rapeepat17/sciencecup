@@ -227,13 +227,13 @@ export class TournamentService {
         matchNumber: 1,
         roundName: 'รอบ 8 ทีมสุดท้าย',
         slotLabel: 'รอบ 8 ทีม (คู่ที่ 1)',
-        seed1Label: 'A1',
-        seed2Label: 'B2',
+        seed1Label: '-',
+        seed2Label: '-',
         date: 'TBD',
         time: '16:00',
         venue: 'สนาม 1',
-        team1: emptyTeam('A1'),
-        team2: emptyTeam('B2'),
+        team1: emptyTeam('-'),
+        team2: emptyTeam('-'),
         winner: null,
       },
       {
@@ -242,13 +242,13 @@ export class TournamentService {
         matchNumber: 2,
         roundName: 'รอบ 8 ทีมสุดท้าย',
         slotLabel: 'รอบ 8 ทีม (คู่ที่ 2)',
-        seed1Label: 'B1',
-        seed2Label: 'A2',
+        seed1Label: '-',
+        seed2Label: '-',
         date: 'TBD',
         time: '17:00',
         venue: 'สนาม 1',
-        team1: emptyTeam('B1'),
-        team2: emptyTeam('A2'),
+        team1: emptyTeam('-'),
+        team2: emptyTeam('-'),
         winner: null,
       },
       {
@@ -257,13 +257,13 @@ export class TournamentService {
         matchNumber: 3,
         roundName: 'รอบ 8 ทีมสุดท้าย',
         slotLabel: 'รอบ 8 ทีม (คู่ที่ 3)',
-        seed1Label: 'C1',
-        seed2Label: 'D2',
+        seed1Label: '-',
+        seed2Label: '-',
         date: 'TBD',
         time: '18:00',
         venue: 'สนาม 1',
-        team1: emptyTeam('C1'),
-        team2: emptyTeam('D2'),
+        team1: emptyTeam('-'),
+        team2: emptyTeam('-'),
         winner: null,
       },
       {
@@ -272,13 +272,13 @@ export class TournamentService {
         matchNumber: 4,
         roundName: 'รอบ 8 ทีมสุดท้าย',
         slotLabel: 'รอบ 8 ทีม (คู่ที่ 4)',
-        seed1Label: 'D1',
-        seed2Label: 'C2',
+        seed1Label: '-',
+        seed2Label: '-',
         date: 'TBD',
         time: '19:00',
         venue: 'สนาม 1',
-        team1: emptyTeam('D1'),
-        team2: emptyTeam('C2'),
+        team1: emptyTeam('-'),
+        team2: emptyTeam('-'),
         winner: null,
       },
     ];
@@ -290,13 +290,13 @@ export class TournamentService {
         matchNumber: 5,
         roundName: 'รอบรองชนะเลิศ',
         slotLabel: 'รอบรองชนะเลิศ (คู่ที่ 1)',
-        seed1Label: 'A1',
-        seed2Label: 'B2',
+        seed1Label: '-',
+        seed2Label: '-',
         date: 'TBD',
         time: '16:00',
         venue: 'สนาม 1',
-        team1: emptyTeam('A1'),
-        team2: emptyTeam('B2'),
+        team1: emptyTeam('-'),
+        team2: emptyTeam('-'),
         winner: null,
       },
       {
@@ -305,13 +305,13 @@ export class TournamentService {
         matchNumber: 6,
         roundName: 'รอบรองชนะเลิศ',
         slotLabel: 'รอบรองชนะเลิศ (คู่ที่ 2)',
-        seed1Label: 'B1',
-        seed2Label: 'A2',
+        seed1Label: '-',
+        seed2Label: '-',
         date: 'TBD',
         time: '17:00',
         venue: 'สนาม 1',
-        team1: emptyTeam('B1'),
-        team2: emptyTeam('A2'),
+        team1: emptyTeam('-'),
+        team2: emptyTeam('-'),
         winner: null,
       },
     ];
@@ -1036,8 +1036,7 @@ export class TournamentService {
           slotTeam?.seedCode ||
           (incName && /^([A-Z])(\d+)$/i.test(incName)
             ? incName.toUpperCase()
-            : null) ||
-          (!hasDbMatch && knockoutMatches.length === 0 ? defaultSeed : null);
+            : null);
 
         if (seed) {
           const row = standingsLookup.resolveBySeed(seed);
@@ -1233,11 +1232,7 @@ export class TournamentService {
         return toSlotTeam(undefined, candidateSeed);
       }
 
-      const defaultRow = resolveBySeed(defaultSeedCode) || fallbackRow;
-      if (defaultRow && defaultRow.teamName && defaultRow.played > 0) {
-        return toSlotTeam(defaultRow, defaultSeedCode);
-      }
-      return toSlotTeam(undefined, defaultSeedCode);
+      return toSlotTeam(undefined, null);
     };
 
     if (startingRound === 'qf') {

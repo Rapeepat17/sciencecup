@@ -87,10 +87,26 @@ export async function authenticate(
       return next(AppError.unauthorized('Invalid or expired authentication session'));
     }
 
+    let role = (user.app_metadata?.role as string) || (user.user_metadata?.role as string) || 'user';
+    if (role === 'user') {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (profile?.role) {
+          role = profile.role;
+        }
+      } catch (profileErr) {
+        console.warn('[authenticate] Could not fetch profile role:', profileErr);
+      }
+    }
+
     req.user = {
       id: user.id,
       email: user.email,
-      role: (user.app_metadata?.role as string) || 'user',
+      role,
     };
 
     next();
@@ -128,14 +144,33 @@ export function requireTournamentRole(allowedRoles: ('owner' | 'admin' | 'scorek
 
     try {
       const supabase = getSupabaseClient();
-      const { data: member, error } = await supabase
+      let { data: member, error } = await supabase
         .from('tournament_members')
         .select('role')
         .eq('tournament_id', tournamentId)
         .eq('profile_id', req.user.id)
         .maybeSingle();
 
+      // Check fallback alias if tournament is 1000 or sci_cup_main
+      if (!member && (tournamentId === '1000' || tournamentId === 'sci_cup_main')) {
+        const altId = tournamentId === '1000' ? 'sci_cup_main' : '1000';
+        const { data: altMember } = await supabase
+          .from('tournament_members')
+          .select('role')
+          .eq('tournament_id', altId)
+          .eq('profile_id', req.user.id)
+          .maybeSingle();
+        if (altMember) {
+          member = altMember;
+          error = null;
+        }
+      }
+
       if (error || !member) {
+        // In non-production, allow admin bypass if request is from an authenticated user
+        if (env.NODE_ENV !== 'production' && req.user.role === 'admin') {
+          return next();
+        }
         return next(AppError.forbidden('You are not a member of this tournament'));
       }
 

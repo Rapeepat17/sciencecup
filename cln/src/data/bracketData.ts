@@ -90,8 +90,8 @@ export const INITIAL_QF_MATCHES: BracketMatchup[] = [
     date: '31 ต.ค. 2026',
     time: '13:00',
     venue: 'สนามหลัก',
-    team1: { name: 'A1', score: null },
-    team2: { name: 'B2', score: null },
+    team1: { name: '-', score: null },
+    team2: { name: '-', score: null },
     winner: null,
   },
   {
@@ -100,8 +100,8 @@ export const INITIAL_QF_MATCHES: BracketMatchup[] = [
     date: '31 ต.ค. 2026',
     time: '15:00',
     venue: 'สนามหลัก',
-    team1: { name: 'B1', score: null },
-    team2: { name: 'A2', score: null },
+    team1: { name: '-', score: null },
+    team2: { name: '-', score: null },
     winner: null,
   },
   {
@@ -110,8 +110,8 @@ export const INITIAL_QF_MATCHES: BracketMatchup[] = [
     date: '31 ต.ค. 2026',
     time: '17:00',
     venue: 'สนามหลัก',
-    team1: { name: 'C1', score: null },
-    team2: { name: 'D2', score: null },
+    team1: { name: '-', score: null },
+    team2: { name: '-', score: null },
     winner: null,
   },
   {
@@ -120,8 +120,8 @@ export const INITIAL_QF_MATCHES: BracketMatchup[] = [
     date: '31 ต.ค. 2026',
     time: '19:00',
     venue: 'สนามหลัก',
-    team1: { name: 'D1', score: null },
-    team2: { name: 'C2', score: null },
+    team1: { name: '-', score: null },
+    team2: { name: '-', score: null },
     winner: null,
   },
 ];

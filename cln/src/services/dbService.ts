@@ -18,6 +18,7 @@ import { getPersistedLogo, persistAllTeamLogos } from '../utils/logoStorage';
 import { tournamentService } from './tournamentService';
 import { teamService } from './teamService';
 import { matchService } from './matchService';
+import { playerService } from './playerService';
 import { apiClient } from './apiClient';
 
 export const DEFAULT_TOURNAMENT_ID = '1000';
@@ -57,6 +58,7 @@ export function formatDatabaseData(data: any, tournamentId: string = DEFAULT_TOU
     id: data.id || tournamentId || DEFAULT_TOURNAMENT_ID,
     tournamentName: data.tournament_name || data.tournamentName || data.name || DEFAULT_DATABASE_DATA.tournamentName,
     status: (data.status as TournamentStatus) || 'ACTIVE',
+    logo: data.logo || data.tournamentLogo || '',
     startDate: data.start_date || data.startDate || '',
     endDate: data.end_date || data.endDate || '',
     description: data.description || '',
@@ -132,7 +134,7 @@ export async function fetchTournamentsList(): Promise<TournamentItem[]> {
   } catch (err) {
     console.warn('[dbService] Backend tournaments list fetch failed:', err);
   }
-  return [];
+  return loadTournamentsListSync();
 }
 
 /**
@@ -195,6 +197,7 @@ export async function updateTournamentMeta(
       logo: meta.logo,
       start_date: meta.startDate,
       end_date: meta.endDate,
+      status: meta.status,
       knockout_starting_round: meta.knockoutStartingRound,
       is_user_portal_enabled: meta.isUserPortalEnabled,
     });
@@ -231,23 +234,30 @@ export async function fetchDatabase(
 ): Promise<TournamentDatabaseData> {
   try {
     // 1. Fetch from Backend API v1
-    const [tourneyRes, teamsRes, matchesRes, bracketRes] = await Promise.all([
+    const [tourneyRes, teamsRes, matchesRes, bracketRes, playersRes] = await Promise.all([
       tournamentService.getById(tournamentId, signal),
       teamService.getByTournament(tournamentId, signal),
       matchService.getByTournament(tournamentId, undefined, signal),
       tournamentService.getBracket(tournamentId, signal),
+      playerService.getByTournament(tournamentId, undefined, signal).catch(() => []),
     ]);
 
     if (tourneyRes) {
-      const teams = (teamsRes || []).map((t: any) => ({
-        id: String(t.id),
-        name: t.name,
-        nameEn: t.name,
-        shortName: t.short_name || t.name.slice(0, 3).toUpperCase(),
-        group: t.group_name || 'Group A',
-        logo: t.logo || getPersistedLogo(t.id, t.name) || '',
-        players: [],
-      }));
+      const playersList = Array.isArray(playersRes) ? playersRes : [];
+      const teams = (teamsRes || []).map((t: any) => {
+        const teamPlayers = playersList.filter(
+          (p: any) => String(p.team_id || p.teamId) === String(t.id)
+        );
+        return {
+          id: String(t.id),
+          name: t.name,
+          nameEn: t.name,
+          shortName: t.short_name || t.name.slice(0, 3).toUpperCase(),
+          group: t.group_name || 'Group A',
+          logo: t.logo || getPersistedLogo(t.id, t.name) || '',
+          players: teamPlayers,
+        };
+      });
 
       // Group teams by group_name
       const groups: GroupMap = {};
@@ -382,6 +392,7 @@ export async function fetchDatabase(
         id: tournamentId,
         tournamentName: tourneyRes.name || '',
         status: tourneyRes.status || 'ACTIVE',
+        logo: tourneyRes.logo || '',
         startDate: tourneyRes.start_date || '',
         endDate: tourneyRes.end_date || '',
         description: tourneyRes.description || '',
@@ -408,7 +419,16 @@ export async function fetchDatabase(
     console.warn(`[dbService] Backend fetch failed for "${tournamentId}":`, err);
   }
 
-  return { ...DEFAULT_DATABASE_DATA, id: tournamentId, _isOfflineFallback: true } as any;
+  const cachedList = loadTournamentsListSync();
+  const cachedTourney = cachedList.find((t) => String(t.id) === String(tournamentId));
+
+  return {
+    ...DEFAULT_DATABASE_DATA,
+    id: tournamentId,
+    tournamentName: cachedTourney?.name || '',
+    logo: cachedTourney?.logo || '',
+    _isOfflineFallback: true,
+  } as any;
 }
 
 /**

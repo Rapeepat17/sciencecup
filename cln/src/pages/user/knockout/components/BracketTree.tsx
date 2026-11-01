@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Clock, Calendar, MapPin, Trophy } from 'lucide-react';
-import { BracketMatchup } from '../../../../types';
+import { BracketMatchup, Match } from '../../../../types';
 import { TeamLogo } from '../../../../components/TeamLogo';
 import { KnockoutFilterRound } from './KnockoutFilterTabs';
 
@@ -12,6 +12,7 @@ export interface BracketTreeProps {
   finalMatch?: BracketMatchup | null;
   selectedRound?: KnockoutFilterRound;
   onMatchClick?: (matchId: string) => void;
+  matches?: Match[];
 }
 
 export const BracketTree: React.FC<BracketTreeProps> = ({
@@ -22,6 +23,7 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
   finalMatch,
   selectedRound = 'all',
   onMatchClick,
+  matches,
 }) => {
   // Fallback defaults matching standard seeds
   const defaultQF: BracketMatchup[] = [
@@ -31,8 +33,8 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
       date: '31 ต.ค. 2026',
       time: '16:00 น.',
       venue: 'สนาม 1',
-      team1: { name: 'A1', score: null },
-      team2: { name: 'B2', score: null },
+      team1: { name: '-', score: null },
+      team2: { name: '-', score: null },
     },
     {
       id: 'qf2',
@@ -40,8 +42,8 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
       date: '31 ต.ค. 2026',
       time: '17:00 น.',
       venue: 'สนาม 1',
-      team1: { name: 'B1', score: null },
-      team2: { name: 'A2', score: null },
+      team1: { name: '-', score: null },
+      team2: { name: '-', score: null },
     },
     {
       id: 'qf3',
@@ -49,8 +51,8 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
       date: '31 ต.ค. 2026',
       time: '18:00 น.',
       venue: 'สนาม 1',
-      team1: { name: 'C1', score: null },
-      team2: { name: 'D2', score: null },
+      team1: { name: '-', score: null },
+      team2: { name: '-', score: null },
     },
     {
       id: 'qf4',
@@ -58,8 +60,8 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
       date: '31 ต.ค. 2026',
       time: '19:00 น.',
       venue: 'สนาม 1',
-      team1: { name: 'D1', score: null },
-      team2: { name: 'C2', score: null },
+      team1: { name: '-', score: null },
+      team2: { name: '-', score: null },
     },
   ];
 
@@ -94,9 +96,84 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
     team2: { name: 'ทีมชนะคู่ 21', score: null },
   };
 
-  const qfList = qfMatches && qfMatches.length > 0 ? qfMatches : defaultQF;
-  const sfList = sfMatches && sfMatches.length > 0 ? sfMatches : defaultSF;
-  const final = finalMatch || defaultFinal;
+  // Helper to resolve match scores and winner from matches list
+  const resolveMatchWithScores = (m: BracketMatchup, roundType: 'qf' | 'sf' | 'final'): BracketMatchup => {
+    if (!matches || matches.length === 0) return m;
+
+    const t1 = m.team1?.name;
+    const t2 = m.team2?.name;
+    const bNum = (m as any)?.matchNumber;
+
+    const found = matches.find((sched) => {
+      if (sched.id === m.id || sched.id === `bracket_${m.id}`) return true;
+      if (bNum && Number(sched.matchNumber) === Number(bNum)) return true;
+      if (t1 && t2 && t1 !== '-' && t2 !== '-' && !t1.includes('ทีมชนะ') && !t2.includes('ทีมชนะ')) {
+        const direct = sched.team1?.name === t1 && sched.team2?.name === t2;
+        const reverse = sched.team1?.name === t2 && sched.team2?.name === t1;
+        if (direct || reverse) return true;
+      }
+      if (roundType === 'final') {
+        const isFinalRound =
+          (sched.round?.includes('ชิงชนะเลิศ') || sched.round === 'นัดชิงชนะเลิศ' || sched.round?.includes('Final')) &&
+          !sched.round?.includes('รอง') &&
+          !sched.round?.includes('อันดับ') &&
+          !sched.round?.includes('3');
+        if (isFinalRound) return true;
+      }
+      return false;
+    });
+
+    if (!found) return m;
+
+    const isFinished = found.status === 'FT' || found.currentMinute === 'FT';
+    const isLive = found.status === 'LIVE';
+
+    if (!isFinished && !isLive && found.score1 === undefined && found.score2 === undefined) {
+      return m;
+    }
+
+    let s1 = found.score1 ?? null;
+    let s2 = found.score2 ?? null;
+    let p1 = found.penaltyScore1 ?? null;
+    let p2 = found.penaltyScore2 ?? null;
+
+    if (t1 && found.team2?.name === t1 && found.team1?.name === t2) {
+      s1 = found.score2 ?? null;
+      s2 = found.score1 ?? null;
+      p1 = found.penaltyScore2 ?? null;
+      p2 = found.penaltyScore1 ?? null;
+    }
+
+    let winner = m.winner ?? null;
+    if (isFinished && s1 !== null && s2 !== null) {
+      if (s1 > s2) winner = 1;
+      else if (s2 > s1) winner = 2;
+      else if (p1 !== null && p2 !== null && p1 !== p2) winner = p1 > p2 ? 1 : 2;
+    }
+
+    return {
+      ...m,
+      team1: {
+        ...m.team1,
+        score: s1 !== null ? s1 : m.team1?.score,
+        penaltyScore: p1 !== null ? p1 : m.team1?.penaltyScore,
+      },
+      team2: {
+        ...m.team2,
+        score: s2 !== null ? s2 : m.team2?.score,
+        penaltyScore: p2 !== null ? p2 : m.team2?.penaltyScore,
+      },
+      winner: winner !== null ? winner : m.winner,
+    };
+  };
+
+  const rawQf = qfMatches && qfMatches.length > 0 ? qfMatches : defaultQF;
+  const rawSf = sfMatches && sfMatches.length > 0 ? sfMatches : defaultSF;
+  const rawFinal = finalMatch || defaultFinal;
+
+  const qfList = useMemo(() => rawQf.map((m) => resolveMatchWithScores(m, 'qf')), [rawQf, matches]);
+  const sfList = useMemo(() => rawSf.map((m) => resolveMatchWithScores(m, 'sf')), [rawSf, matches]);
+  const final = useMemo(() => resolveMatchWithScores(rawFinal, 'final'), [rawFinal, matches]);
 
   // Render individual matchup card
   const renderMatchCard = (m: BracketMatchup, isFinal = false) => {
@@ -131,37 +208,61 @@ export const BracketTree: React.FC<BracketTreeProps> = ({
         </div>
 
         {/* Team 1 Row */}
-        <div className="flex items-center justify-between py-1.5 gap-2">
+        <div className={`flex items-center justify-between py-1.5 gap-2 ${m.winner === 1 ? 'font-bold' : ''}`}>
           <div className="flex items-center gap-2 min-w-0">
             <TeamLogo
               logo={m.team1?.logo}
               name={m.team1?.name}
               className="w-5 h-5 sm:w-6 sm:h-6"
             />
-            <span className="text-xs sm:text-sm font-semibold text-[#1b1c1c] truncate">
+            <span className={`text-xs sm:text-sm truncate ${m.winner === 1 ? 'font-bold text-[#1b1c1c]' : 'font-medium text-[#1b1c1c]'}`}>
               {m.team1?.name || '-'}
             </span>
+            {isFinal && m.winner === 1 && (
+              <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-full shrink-0">
+                ชนะเลิศ
+              </span>
+            )}
           </div>
-          <span className="text-xs sm:text-sm font-bold text-[#1b1c1c] px-2 py-0.5 rounded bg-[#f5f3f3]">
-            {m.team1?.score !== null && m.team1?.score !== undefined ? m.team1.score : '-'}
-          </span>
+          <div className="flex items-center gap-1 shrink-0">
+            {m.team1?.penaltyScore !== null && m.team1?.penaltyScore !== undefined && (
+              <span className="text-[11px] text-[#7d7765] font-semibold">
+                (p.{m.team1.penaltyScore})
+              </span>
+            )}
+            <span className={`text-xs sm:text-sm font-bold px-2 py-0.5 rounded ${m.winner === 1 ? 'bg-amber-100 text-amber-900 border border-amber-300 font-extrabold' : 'bg-[#f5f3f3] text-[#1b1c1c]'}`}>
+              {m.team1?.score !== null && m.team1?.score !== undefined ? m.team1.score : '-'}
+            </span>
+          </div>
         </div>
 
         {/* Team 2 Row */}
-        <div className="flex items-center justify-between py-1.5 gap-2 border-t border-[#f5f3f3]/60 mt-1">
+        <div className={`flex items-center justify-between py-1.5 gap-2 border-t border-[#f5f3f3]/60 mt-1 ${m.winner === 2 ? 'font-bold' : ''}`}>
           <div className="flex items-center gap-2 min-w-0">
             <TeamLogo
               logo={m.team2?.logo}
               name={m.team2?.name}
               className="w-5 h-5 sm:w-6 sm:h-6"
             />
-            <span className="text-xs sm:text-sm font-semibold text-[#1b1c1c] truncate">
+            <span className={`text-xs sm:text-sm truncate ${m.winner === 2 ? 'font-bold text-[#1b1c1c]' : 'font-medium text-[#1b1c1c]'}`}>
               {m.team2?.name || '-'}
             </span>
+            {isFinal && m.winner === 2 && (
+              <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-full shrink-0">
+                ชนะเลิศ
+              </span>
+            )}
           </div>
-          <span className="text-xs sm:text-sm font-bold text-[#1b1c1c] px-2 py-0.5 rounded bg-[#f5f3f3]">
-            {m.team2?.score !== null && m.team2?.score !== undefined ? m.team2.score : '-'}
-          </span>
+          <div className="flex items-center gap-1 shrink-0">
+            {m.team2?.penaltyScore !== null && m.team2?.penaltyScore !== undefined && (
+              <span className="text-[11px] text-[#7d7765] font-semibold">
+                (p.{m.team2.penaltyScore})
+              </span>
+            )}
+            <span className={`text-xs sm:text-sm font-bold px-2 py-0.5 rounded ${m.winner === 2 ? 'bg-amber-100 text-amber-900 border border-amber-300 font-extrabold' : 'bg-[#f5f3f3] text-[#1b1c1c]'}`}>
+              {m.team2?.score !== null && m.team2?.score !== undefined ? m.team2.score : '-'}
+            </span>
+          </div>
         </div>
 
         {/* Final Venue Footer */}

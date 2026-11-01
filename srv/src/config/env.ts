@@ -30,7 +30,7 @@ const envSchema = z.object({
     .string()
     .default('http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000), // 1 minute
-  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(120), // 120 requests/minute
+  RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(300), // 300 requests/minute safe buffer
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

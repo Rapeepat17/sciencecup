@@ -8,6 +8,7 @@ export interface AdminLayoutProps {
   activeView: ActiveView;
   setActiveView: (view: ActiveView) => void;
   tournamentName: string;
+  tournamentStatus?: string;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   onSwitchToUser?: () => void;
@@ -25,6 +26,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   activeView,
   setActiveView,
   tournamentName,
+  tournamentStatus,
   searchQuery,
   setSearchQuery,
   onSwitchToUser,
@@ -62,6 +64,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           activeView={activeView}
           setActiveView={setActiveView}
           tournamentName={tournamentName}
+          tournamentStatus={tournamentStatus}
           isOpen={isSidebarOpen}
           setIsOpen={setIsSidebarOpen}
           onSwitchToUser={onSwitchToUser}

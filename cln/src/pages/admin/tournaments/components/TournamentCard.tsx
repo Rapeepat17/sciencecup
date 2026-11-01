@@ -46,9 +46,9 @@ export const TournamentCard: React.FC<TournamentCardProps> = ({
           : 'border-gray-200/90 hover:border-gray-300 bg-white'
       }`}
     >
-      {/* Left Section: Thumbnail + Name + ID + Description */}
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <div className="w-10 h-10 rounded-xl bg-amber-50/70 border border-amber-200/70 p-1.5 flex items-center justify-center shrink-0 overflow-hidden">
+      {/* Left Section: Thumbnail + Name + Description */}
+      <div className="flex items-center gap-3.5 sm:gap-4 min-w-0 flex-1">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-amber-50/50 p-1 flex items-center justify-center shrink-0 overflow-hidden">
           {tournament.logo ? (
             <img
               src={tournament.logo}
@@ -56,7 +56,7 @@ export const TournamentCard: React.FC<TournamentCardProps> = ({
               className="w-full h-full object-contain"
             />
           ) : (
-            <Trophy className="w-5 h-5 text-[#b45309]" />
+            <Trophy className="w-7 h-7 sm:w-8 sm:h-8 text-[#b45309]" />
           )}
         </div>
 
@@ -65,9 +65,6 @@ export const TournamentCard: React.FC<TournamentCardProps> = ({
             <h3 className="font-semibold text-sm sm:text-base text-gray-900 tracking-tight truncate group-hover:text-[#786607] transition-colors">
               {tournament.name}
             </h3>
-            <span className="inline-block text-[11px] font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-              ID: {tournament.id}
-            </span>
             {isCurrent && (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300/60">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />

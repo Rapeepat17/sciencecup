@@ -13,19 +13,25 @@ export const UserNavbar: React.FC<UserNavbarProps> = ({
   title = 'SCIENCE CUP 2026',
   subtitle,
   isLive = true,
-  logoUrl = '/science_cup_logo.png',
+  logoUrl,
   onAdminClick,
 }) => {
+  const displayLogo = logoUrl && logoUrl.trim() !== '' ? logoUrl : '/avero_match_logo.jpg';
+
   return (
     <div className="flex items-center justify-between h-16 sm:h-20 gap-3">
       {/* Logo & Tournament Name */}
-      <div className="flex items-center gap-3.5 min-w-0">
+      <div className="flex items-center gap-3 sm:gap-3.5 min-w-0">
         <img
-          src={logoUrl}
-          alt="Science Cup Logo"
-          className="h-12 sm:h-16 w-auto object-contain shrink-0 drop-shadow-xs"
+          src={displayLogo}
+          alt={title || 'Tournament Logo'}
+          className={`${displayLogo.includes('avero_match_logo') ? 'h-7 sm:h-8' : 'h-10 sm:h-12'} w-auto object-contain shrink-0`}
           onError={(e) => {
-            (e.target as HTMLElement).style.display = 'none';
+            const target = e.target as HTMLImageElement;
+            if (!target.src.includes('avero_match_logo.jpg')) {
+              target.src = '/avero_match_logo.jpg';
+              target.className = 'h-7 sm:h-8 w-auto object-contain shrink-0';
+            }
           }}
         />
         <div className="min-w-0">

@@ -19,6 +19,7 @@ export interface AdminSidebarProps {
   activeView: ActiveView;
   setActiveView: (view: ActiveView) => void;
   tournamentName?: string;
+  tournamentStatus?: string;
   isOpen?: boolean;
   setIsOpen?: (open: boolean) => void;
   // Legacy alias compatibility
@@ -36,6 +37,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   activeView,
   setActiveView,
   tournamentName,
+  tournamentStatus = 'ACTIVE',
   isOpen = true,
   setIsOpen,
   isMobileOpen,
@@ -140,9 +142,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               <div className="flex items-center gap-2.5 min-w-0">
                 <span
                   className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                    tournamentName && tournamentName.trim()
-                      ? 'bg-[#10b981]'
-                      : 'bg-gray-300'
+                    !tournamentName || !tournamentName.trim()
+                      ? 'bg-gray-300'
+                      : tournamentStatus === 'DRAFT'
+                      ? 'bg-amber-400'
+                      : tournamentStatus === 'COMPLETED'
+                      ? 'bg-slate-400'
+                      : 'bg-[#10b981]'
                   }`}
                 />
                 <span
@@ -158,12 +164,20 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               {tournamentName && tournamentName.trim() ? (
                 <span
                   className={`text-[11px] px-2.5 py-0.5 rounded-full font-semibold shrink-0 ${
-                    isItemActive('tournaments')
+                    tournamentStatus === 'DRAFT'
+                      ? 'bg-amber-100 text-amber-800'
+                      : tournamentStatus === 'COMPLETED'
+                      ? 'bg-slate-200 text-slate-700'
+                      : isItemActive('tournaments')
                       ? 'bg-white text-[#786607]'
                       : 'bg-[#ffe680] text-[#786607]'
                   }`}
                 >
-                  Active
+                  {tournamentStatus === 'DRAFT'
+                    ? 'Draft'
+                    : tournamentStatus === 'COMPLETED'
+                    ? 'Completed'
+                    : 'Active'}
                 </span>
               ) : (
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold shrink-0 bg-white/70 text-gray-500">

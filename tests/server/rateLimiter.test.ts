@@ -62,4 +62,24 @@ describe('Rate Limiter Middleware', () => {
     assert.strictEqual(statusCode, 429);
     assert.strictEqual(jsonBody?.error?.code, 'RATE_LIMIT_EXCEEDED');
   });
+
+  test('should bypass rate limit for localhost in non-production environments', () => {
+    const limiter = rateLimiter(60000, 1);
+    const req: any = { ip: '127.0.0.1', path: '/api/tournaments', method: 'GET' };
+    const res: any = {
+      setHeader: () => {},
+      status: () => res,
+      json: () => res,
+    };
+
+    let nextCount = 0;
+    // Call 5 times, well exceeding limit of 1
+    for (let i = 0; i < 5; i++) {
+      limiter(req, res, () => {
+        nextCount++;
+      });
+    }
+
+    assert.strictEqual(nextCount, 5, 'All requests from localhost should bypass rate limiting');
+  });
 });

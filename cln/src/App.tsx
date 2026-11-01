@@ -47,7 +47,7 @@ import {
   BracketPage as AdminBracketPage,
   SettingsPage as AdminSettingsPage,
 } from './pages/admin';
-import { AdminLoginModal } from './components/AdminLoginModal';
+import { LoginPage } from './pages/Login';
 import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 import { authService } from './services/authService';
 type UserTab = 'fixtures' | 'standings' | 'bracket';
@@ -113,6 +113,9 @@ function getRouteFromLocation(): { appMode: AppMode; activeView: ActiveView; use
     if (hash === 'fixtures' || hash === 'user-fixtures' || hash === 'user-portal') {
       return { appMode: 'user', activeView: 'user-portal', userTab: 'fixtures' };
     }
+    if (hash === 'login' || hash === 'admin-login') {
+      return { appMode: 'login', activeView: 'user-portal', userTab: 'fixtures' };
+    }
     if (hash === 'standings' || hash === 'user-standings') {
       return { appMode: 'user', activeView: 'user-portal', userTab: 'standings' };
     }
@@ -149,7 +152,16 @@ export default function App() {
 
   const [tournamentName, setTournamentName] = useState<string>(initialDb.tournamentName || '');
   const [tournamentDescription, setTournamentDescription] = useState<string>(initialDb.description || '');
-  const [tournamentLogo, setTournamentLogo] = useState<string>(initialDb.logo || '');
+  const [tournamentLogo, setTournamentLogo] = useState<string>(() => {
+    if (initialDb.logo) return initialDb.logo;
+    try {
+      const stored = localStorage.getItem('scicup_current_tournament_id');
+      const targetId = stored || (initialTournaments.length > 0 ? String(initialTournaments[0].id) : '');
+      const matching = initialTournaments.find((t) => String(t.id) === String(targetId));
+      if (matching?.logo) return matching.logo;
+    } catch {}
+    return '';
+  });
   const [teams, setTeams] = useState<Team[]>(initialDb.teams ?? []);
   const [groups, setGroups] = useState<GroupMap>(initialDb.groups ?? {});
   const [matches, setMatches] = useState<Match[]>(initialDb.matches ?? []);
@@ -169,6 +181,9 @@ export default function App() {
   const [isUserPortalEnabled, setIsUserPortalEnabled] = useState<boolean>(
     initialDb.isUserPortalEnabled !== undefined ? Boolean(initialDb.isUserPortalEnabled) : true
   );
+  const [tournamentStatus, setTournamentStatus] = useState<string>(
+    initialDb.status || 'ACTIVE'
+  );
   const [adminCredentials, setAdminCredentials] = useState<AdminCredentials>(
     initialDb.adminCredentials || { username: 'admin', passwordHash: '1234' }
   );
@@ -180,8 +195,17 @@ export default function App() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
     return authService.isAuthenticated();
   });
-  const [isAdminLoginModalOpen, setIsAdminLoginModalOpen] = useState(false);
   const [dbStatus, setDbStatus] = useState<string>('กำลังเชื่อมต่อฐานข้อมูล...');
+
+  const navigateToLogin = useCallback(() => {
+    setAppMode('login');
+    try {
+      localStorage.setItem('scicup_app_mode', 'login');
+    } catch {}
+    if (typeof window !== 'undefined' && window.location.hash !== '#login') {
+      window.history.replaceState(null, '', '#login');
+    }
+  }, []);
   const [isDbLoaded, setIsDbLoaded] = useState<boolean>(false);
   const [isOfflineFallback, setIsOfflineFallback] = useState<boolean>(false);
   const isDbLoadedRef = useRef(false);
@@ -192,22 +216,27 @@ export default function App() {
   const tournamentSwitchSeqRef = useRef<number>(0);
   const currentTournamentIdRef = useRef<string>(currentTournamentId);
   const switchAbortControllerRef = useRef<AbortController | null>(null);
+  const tournamentsRef = useRef<TournamentItem[]>(tournaments);
 
   useEffect(() => {
     currentTournamentIdRef.current = currentTournamentId;
   }, [currentTournamentId]);
+
+  useEffect(() => {
+    tournamentsRef.current = tournaments;
+  }, [tournaments]);
 
   // Listen for JWT expiration event from apiClient
   useEffect(() => {
     const handleAuthExpired = () => {
       setIsAdminLoggedIn(false);
       if (appMode === 'admin') {
-        setIsAdminLoginModalOpen(true);
+        navigateToLogin();
       }
     };
     window.addEventListener('scicup:auth-expired', handleAuthExpired);
     return () => window.removeEventListener('scicup:auth-expired', handleAuthExpired);
-  }, [appMode]);
+  }, [appMode, navigateToLogin]);
 
   const applyDatabaseData = useCallback((data: TournamentDatabaseData, isInitial: boolean = false) => {
     if (!data) return;
@@ -263,6 +292,7 @@ export default function App() {
     if (typeof data.isBracketLocked === 'boolean') setIsBracketLocked(data.isBracketLocked);
     if (typeof data.isKnockoutCreated === 'boolean') setIsKnockoutCreated(data.isKnockoutCreated);
     if (typeof data.isUserPortalEnabled === 'boolean') setIsUserPortalEnabled(data.isUserPortalEnabled);
+    if (data.status) setTournamentStatus(String(data.status).toUpperCase());
     if (data.adminCredentials) setAdminCredentials(data.adminCredentials);
 
     if ((data as any)?._isOfflineFallback) {
@@ -292,8 +322,15 @@ export default function App() {
       localStorage.setItem('scicup_current_tournament_id', tourneyId);
     } catch {}
 
-    // 2. Immediately purge current states to prevent previous tournament's data from lingering
-    setTournamentName('');
+    // 2. Immediately set tournament name and logo from cached list to avoid flash
+    const tourneyList = tournamentsRef.current.length > 0 ? tournamentsRef.current : tournaments;
+    const matchingItem = tourneyList.find((t) => String(t.id) === String(tourneyId));
+    if (matchingItem?.name) {
+      setTournamentName(matchingItem.name);
+    }
+    if (matchingItem?.logo !== undefined) {
+      setTournamentLogo(matchingItem.logo || '');
+    }
     setTeams([]);
     setGroups({});
     setMatches([]);
@@ -316,6 +353,9 @@ export default function App() {
       }
       if (data) {
         applyDatabaseData(data, true);
+        if (!data.tournamentName && matchingItem?.name) {
+          setTournamentName(matchingItem.name);
+        }
       }
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -330,7 +370,7 @@ export default function App() {
         setIsDbLoaded(true);
       }
     }
-  }, [applyDatabaseData]);
+  }, [applyDatabaseData, tournaments]);
 
   // Async load from cloud/local DB + 8s Safe Auto-Polling + Cross-Tab Sync
   useEffect(() => {
@@ -343,6 +383,9 @@ export default function App() {
         if (isMounted) setTournaments(tourneysList || []);
 
         if (!tourneysList || tourneysList.length === 0) {
+          if (currentTournamentId) {
+            return;
+          }
           if (isMounted) {
             setCurrentTournamentId('');
             setTournamentName('');
@@ -763,11 +806,133 @@ export default function App() {
   useEffect(() => {
     if (!isDbLoaded || !matches || matches.length === 0) return;
 
+    const findScheduleMatch = (
+      bracketMatch?: BracketMatchup,
+      matchId?: string,
+      roundType?: 'r16' | 'qf' | 'sf' | 'final'
+    ): Match | undefined => {
+      if (!bracketMatch && !matchId) return undefined;
+      const bId = matchId || bracketMatch?.id;
+
+      // 1. Direct ID matches
+      let found = matches.find(
+        (m) =>
+          m.id === bId ||
+          m.id === `bracket_${bId}` ||
+          m.id === `match-${bId}` ||
+          (bId && m.id?.includes(bId))
+      );
+      if (found) return found;
+
+      // 2. By matchNumber if bracketMatch has matchNumber
+      const bNum = (bracketMatch as any)?.matchNumber;
+      if (bNum) {
+        found = matches.find((m) => Number(m.matchNumber) === Number(bNum));
+        if (found) return found;
+      }
+
+      // 3. By round type and team names
+      const t1 = bracketMatch?.team1?.name;
+      const t2 = bracketMatch?.team2?.name;
+      if (t1 && t2 && t1 !== '-' && t2 !== '-' && !t1.includes('ทีมชนะ') && !t2.includes('ทีมชนะ')) {
+        found = matches.find((m) => {
+          const direct = m.team1?.name === t1 && m.team2?.name === t2;
+          const reverse = m.team1?.name === t2 && m.team2?.name === t1;
+          return direct || reverse;
+        });
+        if (found) return found;
+      }
+
+      // 4. By Round Name
+      if (roundType === 'final' || bId === 'final' || bracketMatch?.roundName?.includes('ชิงชนะเลิศ')) {
+        found = matches.find(
+          (m) =>
+            (m.round?.includes('ชิงชนะเลิศ') || m.round === 'นัดชิงชนะเลิศ' || m.round?.includes('Final')) &&
+            !m.round?.includes('รอง') &&
+            !m.round?.includes('อันดับ') &&
+            !m.round?.includes('3')
+        );
+        if (found) return found;
+      }
+
+      return undefined;
+    };
+
+    const syncScoresFromSchedule = (
+      bracketMatch: BracketMatchup,
+      scheduleMatch?: Match
+    ): BracketMatchup => {
+      if (!scheduleMatch) return bracketMatch;
+
+      let score1: number | null = null;
+      let score2: number | null = null;
+      let pen1: number | null = null;
+      let pen2: number | null = null;
+      let winner: 1 | 2 | null = null;
+
+      const isFinished = scheduleMatch.status === 'FT' || scheduleMatch.currentMinute === 'FT';
+      const isLive = scheduleMatch.status === 'LIVE';
+
+      if (isFinished || isLive || scheduleMatch.score1 !== undefined || scheduleMatch.score2 !== undefined) {
+        const t1 = bracketMatch.team1?.name;
+        const t2 = bracketMatch.team2?.name;
+
+        if (t1 && scheduleMatch.team2?.name === t1 && scheduleMatch.team1?.name === t2) {
+          score1 = scheduleMatch.score2 ?? null;
+          score2 = scheduleMatch.score1 ?? null;
+          pen1 = scheduleMatch.penaltyScore2 ?? null;
+          pen2 = scheduleMatch.penaltyScore1 ?? null;
+        } else {
+          score1 = scheduleMatch.score1 ?? null;
+          score2 = scheduleMatch.score2 ?? null;
+          pen1 = scheduleMatch.penaltyScore1 ?? null;
+          pen2 = scheduleMatch.penaltyScore2 ?? null;
+        }
+
+        if (isFinished && score1 !== null && score2 !== null) {
+          if (score1 > score2) {
+            winner = 1;
+          } else if (score2 > score1) {
+            winner = 2;
+          } else if (pen1 !== null && pen2 !== null && pen1 !== pen2) {
+            winner = pen1 > pen2 ? 1 : 2;
+          }
+        }
+      }
+
+      let copy = { ...bracketMatch };
+      let changed = false;
+
+      if (score1 !== null && score1 !== bracketMatch.team1?.score) {
+        copy.team1 = { ...copy.team1, score: score1, penaltyScore: pen1 };
+        changed = true;
+      } else if (pen1 !== null && pen1 !== bracketMatch.team1?.penaltyScore) {
+        copy.team1 = { ...copy.team1, penaltyScore: pen1 };
+        changed = true;
+      }
+
+      if (score2 !== null && score2 !== bracketMatch.team2?.score) {
+        copy.team2 = { ...copy.team2, score: score2, penaltyScore: pen2 };
+        changed = true;
+      } else if (pen2 !== null && pen2 !== bracketMatch.team2?.penaltyScore) {
+        copy.team2 = { ...copy.team2, penaltyScore: pen2 };
+        changed = true;
+      }
+
+      if (winner !== null && winner !== bracketMatch.winner) {
+        copy.winner = winner;
+        changed = true;
+      }
+
+      return changed ? copy : bracketMatch;
+    };
+
     const getMatchWinnerObj = (
       bracketMatch?: BracketMatchup,
-      matchId?: string
+      matchId?: string,
+      roundType?: 'r16' | 'qf' | 'sf' | 'final'
     ): { name: string; logo: string } | null => {
-      const scheduleMatch = matches.find((m) => m.id === matchId);
+      const scheduleMatch = findScheduleMatch(bracketMatch, matchId, roundType);
       if (
         scheduleMatch &&
         (scheduleMatch.status === 'FT' || scheduleMatch.currentMinute === 'FT') &&
@@ -811,9 +976,10 @@ export default function App() {
 
     const getMatchLoserObj = (
       bracketMatch?: BracketMatchup,
-      matchId?: string
+      matchId?: string,
+      roundType?: 'r16' | 'qf' | 'sf' | 'final'
     ): { name: string; logo: string } | null => {
-      const scheduleMatch = matches.find((m) => m.id === matchId);
+      const scheduleMatch = findScheduleMatch(bracketMatch, matchId, roundType);
       if (
         scheduleMatch &&
         (scheduleMatch.status === 'FT' || scheduleMatch.currentMinute === 'FT') &&
@@ -844,51 +1010,77 @@ export default function App() {
       return null;
     };
 
+    let r16Changed = false;
     let qfChanged = false;
     let sfChanged = false;
     let finalChanged = false;
 
+    // 0. Sync scores from schedule into R16 matches
+    let updatedR16 = r16Matches.map((r16) => {
+      const sMatch = findScheduleMatch(r16, r16.id, 'r16');
+      const synced = syncScoresFromSchedule(r16, sMatch);
+      if (synced !== r16) {
+        r16Changed = true;
+        return synced;
+      }
+      return r16;
+    });
+
     // 1. R16 -> QF
-    let updatedQf = [...qfMatches];
-    if (knockoutStartingRound === 'r16' && r16Matches.length === 8) {
-      updatedQf = qfMatches.map((qf, idx) => {
-        const m1 = r16Matches[idx * 2];
-        const m2 = r16Matches[idx * 2 + 1];
-        const w1 = getMatchWinnerObj(m1, m1?.id);
-        const w2 = getMatchWinnerObj(m2, m2?.id);
-        let qfCopy = { ...qf };
+    let updatedQf = qfMatches.map((qf, idx) => {
+      let qfCopy = { ...qf };
+      let changed = false;
+      if (knockoutStartingRound === 'r16' && updatedR16.length === 8) {
+        const m1 = updatedR16[idx * 2];
+        const m2 = updatedR16[idx * 2 + 1];
+        const w1 = getMatchWinnerObj(m1, m1?.id, 'r16');
+        const w2 = getMatchWinnerObj(m2, m2?.id, 'r16');
         if (w1 && (qf.team1.name !== w1.name || (qf.team1.logo || '') !== w1.logo)) {
           qfCopy.team1 = { ...qfCopy.team1, name: w1.name, logo: w1.logo };
-          qfChanged = true;
+          changed = true;
         }
         if (w2 && (qf.team2.name !== w2.name || (qf.team2.logo || '') !== w2.logo)) {
           qfCopy.team2 = { ...qfCopy.team2, name: w2.name, logo: w2.logo };
-          qfChanged = true;
+          changed = true;
         }
-        return qfCopy;
-      });
-    }
+      }
+      const sMatch = findScheduleMatch(qfCopy, qfCopy.id, 'qf');
+      const synced = syncScoresFromSchedule(qfCopy, sMatch);
+      if (synced !== qfCopy) {
+        qfCopy = synced;
+        changed = true;
+      }
+      if (changed) qfChanged = true;
+      return qfCopy;
+    });
 
     // 2. QF -> SF
-    let updatedSf = [...sfMatches];
-    if ((knockoutStartingRound === 'r16' || knockoutStartingRound === 'qf') && updatedQf.length === 4) {
-      updatedSf = sfMatches.map((sf, idx) => {
+    let updatedSf = sfMatches.map((sf, idx) => {
+      let sfCopy = { ...sf };
+      let changed = false;
+      if ((knockoutStartingRound === 'r16' || knockoutStartingRound === 'qf') && updatedQf.length === 4) {
         const m1 = updatedQf[idx * 2];
         const m2 = updatedQf[idx * 2 + 1];
-        const w1 = getMatchWinnerObj(m1, m1?.id);
-        const w2 = getMatchWinnerObj(m2, m2?.id);
-        let sfCopy = { ...sf };
+        const w1 = getMatchWinnerObj(m1, m1?.id, 'qf');
+        const w2 = getMatchWinnerObj(m2, m2?.id, 'qf');
         if (w1 && (sf.team1.name !== w1.name || (sf.team1.logo || '') !== w1.logo)) {
           sfCopy.team1 = { ...sfCopy.team1, name: w1.name, logo: w1.logo };
-          sfChanged = true;
+          changed = true;
         }
         if (w2 && (sf.team2.name !== w2.name || (sf.team2.logo || '') !== w2.logo)) {
           sfCopy.team2 = { ...sfCopy.team2, name: w2.name, logo: w2.logo };
-          sfChanged = true;
+          changed = true;
         }
-        return sfCopy;
-      });
-    }
+      }
+      const sMatch = findScheduleMatch(sfCopy, sfCopy.id, 'sf');
+      const synced = syncScoresFromSchedule(sfCopy, sMatch);
+      if (synced !== sfCopy) {
+        sfCopy = synced;
+        changed = true;
+      }
+      if (changed) sfChanged = true;
+      return sfCopy;
+    });
 
     // 3. SF -> Final & 3rd Place
     let updatedFinal = { ...finalMatch };
@@ -897,10 +1089,10 @@ export default function App() {
     if (updatedSf.length === 2) {
       const m1 = updatedSf[0];
       const m2 = updatedSf[1];
-      const w1 = getMatchWinnerObj(m1, m1?.id);
-      const w2 = getMatchWinnerObj(m2, m2?.id);
-      l1 = getMatchLoserObj(m1, m1?.id);
-      l2 = getMatchLoserObj(m2, m2?.id);
+      const w1 = getMatchWinnerObj(m1, m1?.id, 'sf');
+      const w2 = getMatchWinnerObj(m2, m2?.id, 'sf');
+      l1 = getMatchLoserObj(m1, m1?.id, 'sf');
+      l2 = getMatchLoserObj(m2, m2?.id, 'sf');
 
       if (w1 && (finalMatch.team1.name !== w1.name || (finalMatch.team1.logo || '') !== w1.logo)) {
         updatedFinal.team1 = { ...updatedFinal.team1, name: w1.name, logo: w1.logo };
@@ -912,6 +1104,15 @@ export default function App() {
       }
     }
 
+    // Sync score directly into Final match
+    const finalSchedMatch = findScheduleMatch(updatedFinal, 'final', 'final');
+    const syncedFinal = syncScoresFromSchedule(updatedFinal, finalSchedMatch);
+    if (syncedFinal !== updatedFinal) {
+      updatedFinal = syncedFinal;
+      finalChanged = true;
+    }
+
+    if (r16Changed) setR16Matches(updatedR16);
     if (qfChanged) setQfMatches(updatedQf);
     if (sfChanged) setSfMatches(updatedSf);
     if (finalChanged) setFinalMatch(updatedFinal);
@@ -1062,6 +1263,7 @@ export default function App() {
   }) => {
     const newTourney = await createTournament(meta);
     const freshList = await fetchTournamentsList();
+    tournamentsRef.current = freshList;
     setTournaments(freshList);
     await handleSelectTournament(newTourney.id);
     navigateToAdminView('tournament-setup-and-groups');
@@ -1073,15 +1275,18 @@ export default function App() {
   ) => {
     await updateTournamentMeta(tourneyId, meta);
     const freshList = await fetchTournamentsList();
+    tournamentsRef.current = freshList;
     setTournaments(freshList);
-    if (tourneyId === currentTournamentId && meta.name) {
-      setTournamentName(meta.name);
+    if (tourneyId === currentTournamentId) {
+      if (meta.name) setTournamentName(meta.name);
+      if (meta.logo !== undefined) setTournamentLogo(meta.logo || '');
     }
   }, [currentTournamentId]);
 
   const handleDeleteTournament = useCallback(async (tourneyId: string) => {
     await deleteTournament(tourneyId);
     const freshList = await fetchTournamentsList();
+    tournamentsRef.current = freshList;
     setTournaments(freshList);
     if (tourneyId === currentTournamentId) {
       const nextId = freshList && freshList.length > 0 ? freshList[0].id : '';
@@ -1142,7 +1347,6 @@ export default function App() {
 
   const handleAdminLoginSuccess = () => {
     setIsAdminLoggedIn(true);
-    setIsAdminLoginModalOpen(false);
     navigateToAdminView('dashboard');
   };
 
@@ -1372,11 +1576,19 @@ export default function App() {
           </div>
         </div>
       )}
-      {appMode === 'admin' ? (
+      {appMode === 'login' ? (
+        <LoginPage
+          onSuccess={handleAdminLoginSuccess}
+          onBack={() => navigateToUserTab(userPortalTab)}
+          tournamentName={tournamentName}
+          logoUrl={tournamentLogo || '/avero_match_logo.jpg'}
+        />
+      ) : appMode === 'admin' ? (
         <AdminLayout
           activeView={activeView}
           setActiveView={navigateToAdminView}
           tournamentName={tournamentName}
+          tournamentStatus={tournamentStatus}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           onSwitchToUser={() => navigateToUserTab(userPortalTab)}
@@ -1387,7 +1599,7 @@ export default function App() {
           headerProps={{
             dbStatus,
             isAdminLoggedIn,
-            onOpenAdminLogin: () => setIsAdminLoginModalOpen(true),
+            onOpenAdminLogin: () => navigateToLogin(),
           }}
         >
           {/* เชื่อมต่อ 9 หน้าแอดมิน */}
@@ -1442,7 +1654,23 @@ export default function App() {
               tournamentName={tournamentName}
             />
           )}
-          {(activeView === 'settings' || activeView === 'tournament-settings') && <AdminSettingsPage />}
+          {(activeView === 'settings' || activeView === 'tournament-settings') && (
+            <AdminSettingsPage
+              currentTournamentId={currentTournamentId}
+              tournamentName={tournamentName}
+              onTournamentUpdated={(updated) => {
+                if (updated?.name) setTournamentName(updated.name);
+                if (updated?.status) setTournamentStatus(String(updated.status).toUpperCase());
+                if (updated?.is_user_portal_enabled !== undefined) {
+                  setIsUserPortalEnabled(Boolean(updated.is_user_portal_enabled));
+                }
+                if (updated?.is_bracket_locked !== undefined) {
+                  setIsBracketLocked(Boolean(updated.is_bracket_locked));
+                }
+              }}
+              onLogout={handleAdminLogout}
+            />
+          )}
         </AdminLayout>
       ) : !isUserPortalEnabled && !isAdminLoggedIn ? (
         /* User Portal Closed / Maintenance View */
@@ -1451,9 +1679,9 @@ export default function App() {
             <div className="flex justify-center">
               <div className="w-20 h-20 rounded-3xl bg-[#ffe680]/30 border-2 border-[#ffe680] flex items-center justify-center p-3">
                 <img
-                  src="/science_cup_logo.png"
+                  src={tournamentLogo || '/avero_match_logo.jpg'}
                   alt="Logo"
-                  className="w-full h-full object-contain drop-shadow-xs"
+                  className="w-full h-full object-contain"
                 />
               </div>
             </div>
@@ -1471,7 +1699,7 @@ export default function App() {
             <div className="pt-4 border-t border-[#efeded]">
               <button
                 type="button"
-                onClick={() => setIsAdminLoginModalOpen(true)}
+                onClick={navigateToLogin}
                 className="w-full py-3 px-4 rounded-2xl bg-[#ffe680] hover:bg-[#fbe27c] text-[#786607] font-display font-bold text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>เข้าสู่ระบบผู้ดูแล (Admin Login)</span>
@@ -1498,6 +1726,23 @@ export default function App() {
               </button>
             </div>
           )}
+          {tournamentStatus === 'DRAFT' && isAdminLoggedIn && (
+            <div className="bg-amber-50 border-b border-amber-300 px-4 py-2 text-xs text-amber-900 font-medium flex items-center justify-between gap-3 sticky top-0 z-50">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse"></span>
+                <span className="truncate">
+                  <strong>สถานะฉบับร่าง (Draft):</strong> ผู้ชมทั่วไปจะเห็นข้อความว่างรอประกาศ (แอดมินยังคงเห็นข้อมูลเพื่อตรวจสอบ)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigateToAdminView('tournament-settings')}
+                className="shrink-0 px-3 py-1 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-900 font-bold transition-colors cursor-pointer text-[11px]"
+              >
+                ไปที่หน้าตั้งค่า
+              </button>
+            </div>
+          )}
           <UserLayout
             activeTab={userPortalTab}
             onTabChange={navigateToUserTab}
@@ -1505,16 +1750,19 @@ export default function App() {
               if (isAdminLoggedIn) {
                 navigateToAdminView('dashboard');
               } else {
-                setIsAdminLoginModalOpen(true);
+                navigateToLogin();
               }
             }}
             title={tournamentName}
             subtitle={tournamentDescription}
-            logoUrl={tournamentLogo || '/science_cup_logo.png'}
+            logoUrl={tournamentLogo || '/avero_match_logo.jpg'}
           >
             {userPortalTab === 'fixtures' && (
               <HomePage
                 tournamentId={currentTournamentId}
+                matches={matches}
+                tournamentStatus={tournamentStatus}
+                isDraft={tournamentStatus === 'DRAFT' && !isAdminLoggedIn}
               />
             )}
             {userPortalTab === 'standings' && (
@@ -1523,6 +1771,8 @@ export default function App() {
                 groups={groups}
                 matches={matches}
                 teams={teams}
+                tournamentStatus={tournamentStatus}
+                isDraft={tournamentStatus === 'DRAFT' && !isAdminLoggedIn}
               />
             )}
             {userPortalTab === 'bracket' && (
@@ -1533,18 +1783,14 @@ export default function App() {
                 qfMatches={qfMatches}
                 sfMatches={sfMatches}
                 finalMatch={finalMatch}
+                tournamentStatus={tournamentStatus}
+                isDraft={tournamentStatus === 'DRAFT' && !isAdminLoggedIn}
+                matches={matches}
               />
             )}
           </UserLayout>
         </div>
       )}
-
-      <AdminLoginModal
-        isOpen={isAdminLoginModalOpen}
-        onClose={() => setIsAdminLoginModalOpen(false)}
-        onSuccess={handleAdminLoginSuccess}
-        adminCredentials={adminCredentials}
-      />
     </div>
   );
 }

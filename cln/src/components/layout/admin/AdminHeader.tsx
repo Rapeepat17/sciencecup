@@ -22,7 +22,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 h-16 bg-white border-b border-[#efeded] px-4 md:px-6 flex items-center justify-between shadow-2xs">
-      {/* 1. ซ้ายสุด: ปุ่มเมนู 3 ขีด + 2. ถัดมา: โลโก้ SCI CUP อันเดียว */}
+      {/* 1. ซ้ายสุด: ปุ่มเมนู 3 ขีด + 2. ถัดมา: โลโก้ AVERO MATCH อันเดียว */}
       <div className="flex items-center gap-3 sm:gap-4 shrink-0">
         <button
           type="button"
@@ -36,12 +36,15 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
 
         <div className="flex items-center gap-2.5 shrink-0">
           <img
-            src="/science_cup_logo.png"
-            alt="Science Cup Logo"
-            className="h-8 w-auto object-contain shrink-0 drop-shadow-2xs"
+            src="/avero_match_logo.jpg"
+            alt="AVERO MATCH Logo"
+            className="h-7 w-auto object-contain shrink-0"
           />
-          <span className="font-display text-base sm:text-lg font-bold tracking-tight text-[#1b1c1c]">
-            SCI <span className="text-[#786607]">CUP</span>
+          <span
+            style={{ fontFamily: "'Chakra Petch', sans-serif" }}
+            className="text-lg sm:text-xl font-bold tracking-tight text-[#142c54]"
+          >
+            AVERO <span className="text-[#3074c0]">MATCH</span>
           </span>
         </div>
       </div>

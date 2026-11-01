@@ -29,11 +29,15 @@ interface MatchesPageProps {
   tournamentName?: string;
 }
 
-const mapBackendStatusToFrontend = (status?: string): MatchStatus => {
+const mapBackendStatusToFrontend = (
+  status?: string,
+  hasScore?: boolean
+): MatchStatus => {
   const s = (status || '').toUpperCase();
   if (s === 'LIVE') return 'LIVE';
   if (s === 'FINISHED' || s === 'COMPLETED' || s === 'FT') return 'FT';
   if (s === 'POSTPONED') return 'POSTPONED';
+  if (hasScore) return 'FT';
   return 'UPCOMING';
 };
 
@@ -152,7 +156,13 @@ export const MatchesPage: React.FC<MatchesPageProps> = ({
           score2: m.away_score !== null && m.away_score !== undefined ? Number(m.away_score) : 0,
           penaltyScore1: m.home_penalty_score ?? null,
           penaltyScore2: m.away_penalty_score ?? null,
-          status: mapBackendStatusToFrontend(m.status),
+          status: mapBackendStatusToFrontend(
+            m.status,
+            m.home_score !== null &&
+              m.home_score !== undefined &&
+              m.away_score !== null &&
+              m.away_score !== undefined
+          ),
         };
       });
     },

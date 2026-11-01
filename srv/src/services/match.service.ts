@@ -954,10 +954,11 @@ export class MatchService {
   }
 
   async getTopScorers(tournamentId: string, limit: number = 10): Promise<any[]> {
-    const [goalEvents, teams, players] = await Promise.all([
+    const [goalEvents, teams, players, matches] = await Promise.all([
       matchRepository.getGoalEventsByTournament(tournamentId),
       teamRepository.findByTournament(tournamentId),
       playerRepository.findByTournament(tournamentId).catch(() => []),
+      matchRepository.findByTournament(tournamentId).catch(() => []),
     ]);
 
     const teamMap = new Map<string, any>();
@@ -967,28 +968,36 @@ export class MatchService {
     const playerByTeamAndNum = new Map<string, any>();
     players.forEach((p) => {
       playerMap.set(String(p.id), p);
-      if (p.team_id && p.number !== null && p.number !== undefined) {
-        playerByTeamAndNum.set(`${p.team_id}_${String(p.number).trim()}`, p);
+      const tid = p.team_id || (p as any).teamId;
+      if (tid && p.number !== null && p.number !== undefined) {
+        playerByTeamAndNum.set(`${String(tid)}_${String(p.number).trim()}`, p);
       }
     });
 
     const scorerMap = new Map<string, {
       id: string;
       name: string;
+      initials?: string;
       number: string;
       teamId: string;
       teamName: string;
+      teamLogo?: string;
       goals: number;
     }>();
 
-    for (const evt of goalEvents) {
-      const teamId = evt.team_id ? String(evt.team_id) : '';
+    const addGoalToScorer = (
+      teamId: string,
+      playerIdInput: string | null,
+      playerNumberInput: string | null,
+      detailInput: string | null
+    ) => {
       const team = teamMap.get(teamId);
       const teamName = team?.name || 'ไม่ระบุทีม';
+      const teamLogo = team?.logo || '';
 
-      let playerId = evt.player_id || '';
-      let playerName = evt.detail || '';
-      let playerNumber = evt.player_number ? String(evt.player_number).trim() : '';
+      let playerId = playerIdInput || '';
+      let playerName = detailInput || '';
+      let playerNumber = playerNumberInput ? String(playerNumberInput).trim() : '';
 
       // เชื่อมโยงเบอร์กับชื่อนักเตะ
       let matchedPlayer = null;
@@ -1001,25 +1010,102 @@ export class MatchService {
       if (matchedPlayer) {
         playerId = String(matchedPlayer.id);
         playerName = matchedPlayer.name || playerName;
-        playerNumber = matchedPlayer.number !== null && matchedPlayer.number !== undefined
-          ? String(matchedPlayer.number).trim()
-          : playerNumber;
+        playerNumber =
+          matchedPlayer.number !== null && matchedPlayer.number !== undefined
+            ? String(matchedPlayer.number).trim()
+            : playerNumber;
       }
 
-      const key = playerId || `${teamId}_${playerNumber || playerName}`;
+      const isGenericName = (val?: string | null) => {
+        if (!val || !val.trim()) return true;
+        const t = val.trim();
+        return (
+          t.startsWith('ผู้เล่นเบอร์') ||
+          t.startsWith('ผู้เล่นหมายเลข') ||
+          t.startsWith('เบอร์') ||
+          t === 'ผู้ทำประตู' ||
+          t === 'ผู้เล่นไม่ระบุชื่อ' ||
+          /^\d+$/.test(t)
+        );
+      };
+
+      const hasRealName = playerName && !isGenericName(playerName);
+
+      const resolvedName = hasRealName
+        ? playerName
+        : playerNumber
+        ? `ผู้เล่นหมายเลข ${playerNumber}`
+        : 'ผู้เล่นไม่ระบุชื่อ';
+
+      const key = playerId || `${teamId}_${playerNumber || resolvedName}`;
       if (!scorerMap.has(key)) {
         scorerMap.set(key, {
           id: key,
-          name: playerName || (playerNumber ? `ผู้เล่นหมายเลข ${playerNumber}` : 'ผู้เล่นไม่ระบุชื่อ'),
+          name: resolvedName,
+          initials: hasRealName
+            ? resolvedName.slice(0, 2).toUpperCase()
+            : `#${playerNumber || '?'}`,
           number: playerNumber,
           teamId,
           teamName,
+          teamLogo,
           goals: 0,
         });
+      } else {
+        const item = scorerMap.get(key)!;
+        if (hasRealName && (!item.name || isGenericName(item.name))) {
+          item.name = resolvedName;
+          item.initials = resolvedName.slice(0, 2).toUpperCase();
+        }
+        if (!item.teamLogo && teamLogo) {
+          item.teamLogo = teamLogo;
+        }
       }
 
       const item = scorerMap.get(key)!;
       item.goals += 1;
+    };
+
+    // 1. ประมวลผลจาก goalEvents ในฐานข้อมูล
+    const matchesWithEvents = new Set<string>();
+    for (const evt of goalEvents) {
+      if (evt.match_id) matchesWithEvents.add(String(evt.match_id));
+      addGoalToScorer(
+        evt.team_id ? String(evt.team_id) : '',
+        evt.player_id ? String(evt.player_id) : null,
+        evt.player_number ? String(evt.player_number) : null,
+        evt.detail || null
+      );
+    }
+
+    // 2. Fallback ประมวลผลจาก home_scorers และ away_scorers ใน matches สำหรับคู่ที่ยังไม่มี events
+    for (const m of matches) {
+      if (matchesWithEvents.has(String(m.id))) continue;
+
+      const parseScorersString = (teamIdStr: string, rawStr?: string) => {
+        if (!rawStr || !rawStr.trim()) return;
+        rawStr.split(',').forEach((s) => {
+          const trimmed = s.trim();
+          if (!trimmed) return;
+          const countMatch = trimmed.match(/\((\d+)\)/);
+          const count = countMatch ? parseInt(countMatch[1], 10) : 1;
+          const cleaned = trimmed.replace(/\(\d+\)/, '').trim();
+          const numMatch = cleaned.match(/\d+/);
+          const num = numMatch ? numMatch[0] : '';
+          const namePart = numMatch && num === cleaned ? null : cleaned;
+
+          for (let i = 0; i < (isNaN(count) ? 1 : count); i++) {
+            addGoalToScorer(teamIdStr, null, num || null, namePart);
+          }
+        });
+      };
+
+      if (m.home_team_id && m.home_scorers) {
+        parseScorersString(String(m.home_team_id), m.home_scorers);
+      }
+      if (m.away_team_id && m.away_scorers) {
+        parseScorersString(String(m.away_team_id), m.away_scorers);
+      }
     }
 
     const list = Array.from(scorerMap.values())

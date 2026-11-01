@@ -46,7 +46,7 @@ export class AuthService {
     });
 
     if (error || !data.session || !data.user) {
-      throw AppError.unauthorized('Invalid email or password');
+      throw AppError.unauthorized('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง');
     }
 
     const userId = data.user.id;

@@ -60,6 +60,19 @@ export const MatchCard: React.FC<MatchCardProps> = ({
       match.timeStr !== 'TBD'
   );
 
+  const isFinished = match.status === 'FT';
+  const isLive = match.status === 'LIVE';
+  const hasScore =
+    isFinished ||
+    isLive ||
+    (match.score1 !== null &&
+      match.score1 !== undefined &&
+      match.score2 !== null &&
+      match.score2 !== undefined &&
+      (match.score1 > 0 ||
+        match.score2 > 0 ||
+        (match as any).home_score !== undefined));
+
   return (
     <div
       draggable={canDrag}
@@ -164,9 +177,21 @@ export const MatchCard: React.FC<MatchCardProps> = ({
                 : 'bg-amber-50/70 border-amber-200/80'
             }`}
           >
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
-              VS
-            </span>
+            {hasScore ? (
+              <div className="flex items-center justify-center gap-1.5 py-0.5">
+                <span className="text-xs sm:text-sm font-bold text-[#1b1c1c] px-2 py-0.5 rounded bg-[#f5f3f3]">
+                  {match.score1}
+                </span>
+                <span className="text-xs text-slate-400 font-bold">-</span>
+                <span className="text-xs sm:text-sm font-bold text-[#1b1c1c] px-2 py-0.5 rounded bg-[#f5f3f3]">
+                  {match.score2}
+                </span>
+              </div>
+            ) : (
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+                VS
+              </span>
+            )}
             <span
               className={`text-xs sm:text-sm font-black flex items-center justify-center gap-1 mt-0.5 ${
                 hasTimeVenue ? 'text-slate-700' : 'text-amber-700'

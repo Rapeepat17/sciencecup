@@ -13,7 +13,17 @@ export const MatchCard: React.FC<MatchCardProps> = ({
   onSelectMatch,
 }) => {
   const isLive = match.status === 'LIVE';
-  const isFT = match.status === 'FT';
+  const hasScore =
+    match.status === 'FT' ||
+    match.status === 'COMPLETED' ||
+    (match.score1 !== null &&
+      match.score1 !== undefined &&
+      match.score2 !== null &&
+      match.score2 !== undefined &&
+      ((match as any).home_score !== undefined ||
+        match.score1 > 0 ||
+        match.score2 > 0));
+  const isFT = !isLive && hasScore;
   const matchNum = match.matchNumber || 1;
   const isKnockout =
     match.group === 'Knockout' ||

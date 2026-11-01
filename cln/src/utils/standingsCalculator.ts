@@ -137,17 +137,27 @@ export function calculateTopScorers(matches: Match[], teamsList?: Team[]): TopSc
 
   const registerTeam = (t: Team) => {
     if (!t) return;
-    if (t.id !== undefined && t.id !== null) {
-      teamRosterMap.set(t.id, t);
-      teamRosterMap.set(String(t.id), t);
+    const existing =
+      teamRosterMap.get(t.id) ||
+      teamRosterMap.get(String(t.id)) ||
+      (t.name ? teamRosterMap.get(t.name.trim()) : undefined);
+
+    const merged =
+      existing?.players && existing.players.length > 0 && (!t.players || t.players.length === 0)
+        ? { ...t, players: existing.players }
+        : t;
+
+    if (merged.id !== undefined && merged.id !== null) {
+      teamRosterMap.set(merged.id, merged);
+      teamRosterMap.set(String(merged.id), merged);
     }
-    if (t.name) {
-      teamRosterMap.set(t.name.trim(), t);
-      teamRosterMap.set(t.name.trim().toLowerCase(), t);
+    if (merged.name) {
+      teamRosterMap.set(merged.name.trim(), merged);
+      teamRosterMap.set(merged.name.trim().toLowerCase(), merged);
     }
-    if (t.shortName) {
-      teamRosterMap.set(t.shortName.trim(), t);
-      teamRosterMap.set(t.shortName.trim().toLowerCase(), t);
+    if (merged.shortName) {
+      teamRosterMap.set(merged.shortName.trim(), merged);
+      teamRosterMap.set(merged.shortName.trim().toLowerCase(), merged);
     }
   };
 
@@ -191,7 +201,16 @@ export function calculateTopScorers(matches: Match[], teamsList?: Team[]): TopSc
     } else if (rawString && rawString.trim()) {
       rawString.split(',').forEach((s) => {
         const trimmed = s.trim();
-        if (trimmed) list.push({ numStr: trimmed });
+        if (!trimmed) return;
+        const countMatch = trimmed.match(/\((\d+)\)/);
+        const count = countMatch ? parseInt(countMatch[1], 10) : 1;
+        const cleaned = trimmed.replace(/\(\d+\)/, '').trim();
+        const numMatch = cleaned.match(/\d+/);
+        const num = numMatch ? numMatch[0] : '';
+        const namePart = numMatch && num === cleaned ? undefined : cleaned;
+        for (let i = 0; i < (isNaN(count) ? 1 : count); i++) {
+          list.push({ numStr: num || cleaned, nameOverride: namePart });
+        }
       });
     }
 
@@ -241,19 +260,44 @@ export function calculateTopScorers(matches: Match[], teamsList?: Team[]): TopSc
       (p) => String(p.number).trim() === String(item.playerNumber).trim()
     );
 
-    const playerName = matchedPlayer?.name || item.nameOverride || `ผู้เล่นเบอร์ ${item.playerNumber}`;
-    const initials = matchedPlayer
+    const isGenericName = (val?: string | null) => {
+      if (!val || !val.trim()) return true;
+      const t = val.trim();
+      return (
+        t.startsWith('ผู้เล่นเบอร์') ||
+        t.startsWith('ผู้เล่นหมายเลข') ||
+        t.startsWith('เบอร์') ||
+        t === 'ผู้ทำประตู' ||
+        t === 'ผู้เล่นไม่ระบุชื่อ' ||
+        /^\d+$/.test(t)
+      );
+    };
+
+    const hasRealPlayerName = matchedPlayer?.name && !isGenericName(matchedPlayer.name);
+    const hasRealOverride = item.nameOverride && !isGenericName(item.nameOverride);
+
+    const playerName = hasRealPlayerName
+      ? matchedPlayer.name
+      : hasRealOverride
+      ? item.nameOverride
+      : item.playerNumber
+      ? `ผู้เล่นหมายเลข ${item.playerNumber}`
+      : 'ผู้เล่นไม่ระบุชื่อ';
+
+    const initials = hasRealPlayerName
       ? matchedPlayer.name.slice(0, 2).toUpperCase()
-      : item.nameOverride
+      : hasRealOverride
       ? item.nameOverride.slice(0, 2).toUpperCase()
-      : `#${item.playerNumber}`;
+      : `#${item.playerNumber || '?'}`;
     return {
       id: `${item.teamId}_${item.playerNumber}`,
       rank: 0,
       name: playerName,
       initials,
       number: item.playerNumber,
+      teamId: String(item.teamId || ''),
       teamName: item.teamName,
+      teamLogo: teamObj?.logo || '',
       group: item.group,
       matchesPlayed: item.matchesSet.size,
       goals: item.goals,

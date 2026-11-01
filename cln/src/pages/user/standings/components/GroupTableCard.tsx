@@ -25,7 +25,7 @@ export const GroupTableCard: React.FC<GroupTableCardProps> = ({
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center p-1">
             <img
-              src="/science_cup_logo.png"
+              src="/avero_match_logo.jpg"
               alt="Tournament Icon"
               className="w-full h-full object-contain"
               onError={(e) => {

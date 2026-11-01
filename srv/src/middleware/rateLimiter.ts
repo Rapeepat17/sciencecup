@@ -30,6 +30,18 @@ export function rateLimiter(
     }
 
     const ip = req.ip || req.socket.remoteAddress || 'unknown-client';
+    const isLocalhost =
+      ip === '127.0.0.1' ||
+      ip === '::1' ||
+      ip === '::ffff:127.0.0.1' ||
+      ip.includes('127.0.0.1') ||
+      ip === 'localhost';
+
+    // Allow unlimited requests from localhost in development or test to prevent UI throttling during rapid tournament switches
+    if (isLocalhost && env.NODE_ENV !== 'production') {
+      return next();
+    }
+
     const now = Date.now();
     let record = clientRecords.get(ip);
 
@@ -56,7 +68,7 @@ export function rateLimiter(
         success: false,
         error: {
           code: 'RATE_LIMIT_EXCEEDED',
-          message: 'Too many requests, please try again later.',
+          message: 'พยายามทำรายการบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง (Too many requests, please try again later.)',
           timestamp: new Date().toISOString(),
         },
       };

@@ -27,6 +27,17 @@ export const MatchTableRow: React.FC<MatchTableRowProps> = ({
   const venueLabel = match.venue || 'สนาม 1';
   const isFinished = match.status === 'FT';
   const isLive = match.status === 'LIVE';
+  const hasScore =
+    isFinished ||
+    isLive ||
+    (match.score1 !== null &&
+      match.score1 !== undefined &&
+      match.score2 !== null &&
+      match.score2 !== undefined &&
+      ((match as any).home_score !== undefined ||
+        match.status === 'COMPLETED' ||
+        match.score1 > 0 ||
+        match.score2 > 0));
 
   return (
     <div
@@ -64,8 +75,8 @@ export const MatchTableRow: React.FC<MatchTableRowProps> = ({
             </span>
           </div>
 
-          <span className="text-sm sm:text-base font-bold text-[#1b1c1c] w-6 text-right">
-            {isFinished || isLive ? match.score1 : '-'}
+          <span className="text-xs sm:text-sm font-bold text-[#1b1c1c] px-2.5 py-0.5 rounded bg-[#f5f3f3] min-w-[28px] text-center shrink-0">
+            {hasScore ? match.score1 : '-'}
           </span>
         </div>
 
@@ -83,8 +94,8 @@ export const MatchTableRow: React.FC<MatchTableRowProps> = ({
             </span>
           </div>
 
-          <span className="text-sm sm:text-base font-bold text-[#1b1c1c] w-6 text-right">
-            {isFinished || isLive ? match.score2 : '-'}
+          <span className="text-xs sm:text-sm font-bold text-[#1b1c1c] px-2.5 py-0.5 rounded bg-[#f5f3f3] min-w-[28px] text-center shrink-0">
+            {hasScore ? match.score2 : '-'}
           </span>
         </div>
       </div>

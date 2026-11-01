@@ -83,7 +83,7 @@ export const TournamentRecentList: React.FC<TournamentRecentListProps> = ({
               >
                 {/* Left: Thumbnail & Main Info */}
                 <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
-                  <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/70 p-2 flex items-center justify-center shrink-0 overflow-hidden shadow-2xs group-hover:scale-105 transition-transform">
+                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-50/70 to-orange-50/70 p-1 flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-105 transition-transform">
                     {t.logo ? (
                       <img
                         src={t.logo}
@@ -91,7 +91,7 @@ export const TournamentRecentList: React.FC<TournamentRecentListProps> = ({
                         className="w-full h-full object-contain"
                       />
                     ) : (
-                      <Trophy className="w-6 h-6 text-[#b45309]" />
+                      <Trophy className="w-7 h-7 text-[#b45309]" />
                     )}
                   </div>
 

@@ -325,7 +325,7 @@ export const TournamentEditModal: React.FC<TournamentEditModalProps> = ({
                     type="text"
                     value={logo}
                     onChange={(e) => setLogo(e.target.value)}
-                    placeholder="ใส่ URL รูปภาพโดยตรง เช่น https://... หรือ /science_cup_logo.png"
+                    placeholder="ใส่ URL รูปภาพโดยตรง เช่น https://... หรือ /avero_match_logo.jpg"
                     className="w-full pl-9 pr-3.5 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 focus:outline-hidden focus:border-[#786607] focus:bg-white"
                   />
                 </div>
